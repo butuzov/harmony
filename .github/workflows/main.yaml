@@ -1,0 +1,28 @@
+# Test & Build
+name: Test & Build
+
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  TestingCode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Go (go1.17)
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
+
+      - name: Setup Go (go1.18beta1)
+        run: |
+          go install golang.org/dl/go1.18beta1@latest
+          go1.18beta1 download
+
+
