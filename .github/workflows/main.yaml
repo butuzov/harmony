@@ -25,4 +25,14 @@ jobs:
           go install golang.org/dl/go1.18beta1@latest
           go1.18beta1 download
 
+      - name: Run Tests
+        run: make test
 
+      - name: "Coverage: Install GoVeralls"
+        env: { GO111MODULE: "off" }
+        run: go get github.com/mattn/goveralls
+
+      - name: "Coverage: Sending Report to coveralls.io"
+        env:
+          COVERALLS_TOKEN: ${{ secrets.github_token }}
+        run: goveralls -coverprofile=coverage.out -service=github

@@ -1,4 +1,4 @@
-# harmony  [![build status](https://github.com/butuzov/harmony/actions/workflows/main.yaml/badge.svg?branch=main)]() [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](http://www.opensource.org/licenses/MIT)
+# harmony  [![Code Coverage](https://coveralls.io/repos/github/butuzov/harmony/badge.svg?branch=main)](https://coveralls.io/github/butuzov/harmony?branch=main) [![build status](https://github.com/butuzov/harmony/actions/workflows/main.yaml/badge.svg?branch=main)]() [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](http://www.opensource.org/licenses/MIT)
 
 Generic Concurrency Patterns Library
 
