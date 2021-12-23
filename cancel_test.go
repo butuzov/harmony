@@ -3,6 +3,8 @@ package harmony_test
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"testing"
 	"time"
 
 	"github.com/butuzov/harmony"
@@ -47,4 +49,26 @@ func ExampleCancelWithContext() {
 
 	fmt.Println(res)
 	// Output: [1 2 3 4 5 6 7]
+}
+
+func TestCancelWithContext_ContextNotUsed(t *testing.T) {
+	incoming := make(chan int)
+	go func() {
+		defer close(incoming)
+		for i := 0; i < 10; i++ {
+			incoming <- i
+		}
+	}()
+
+	// Creating cancelable pipeline for incoming chan.
+	chOut := harmony.CancelWithContext(context.Background(), incoming)
+	var res []int
+	want := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	for val := range chOut {
+		res = append(res, val)
+	}
+
+	if !reflect.DeepEqual(res, want) {
+		t.Errorf("want %v vs got %v", want, res)
+	}
 }
