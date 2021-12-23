@@ -12,7 +12,7 @@ func Futute[T any](futureFn func() T) <-chan T {
 
 // FututeWithContext[T any] will return buffered channel of size 1 and type T,
 // which will eventually contain the results of the execution futureFn, or be closed
-// in case if context canceled.
+// in case if context cancelled.
 func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T {
 	ch := make(chan T, 1)
 
