@@ -4,13 +4,13 @@ import (
 	"context"
 )
 
-// Future[T any] will return buffered channel of size 1 and type T, which will
-// eventually contain the results of the execution futureFn
+// Future will return buffered channel of size 1 and generic type `T` which
+// eventually will contain the result of the execution futureFn
 func Futute[T any](futureFn func() T) <-chan T {
 	return FututeWithContext(context.Background(), futureFn)
 }
 
-// FututeWithContext[T any] will return buffered channel of size 1 and type T,
+// FututeWithContext[T any] will return buffered channel of size 1 and generic type `T`,
 // which will eventually contain the results of the execution futureFn, or be closed
 // in case if context cancelled.
 func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T {

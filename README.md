@@ -6,6 +6,262 @@ Generic Concurrency Patterns Library
 
 <!-- You can Edit Content above this comment --->
 <!-- Start --->
+```go
+import "github.com/butuzov/harmony"
+```
+
+Package `harmony` provides generic concurrency patterns library, created for educational proposes by it's author. It provides next patterns: 
+- `FanIn` 
+- `OrDone` / `Done` / `CancelWithContext` 
+- `Feature` 
+- `Queue`
+
+### Index
+
+- [func CancelWithContext[T any](ctx context.Context, incoming <-chan T) <-chan T](<#func-cancelwithcontext>)
+- [func FanIn[T any](ch1, ch2 <-chan T, channels ...<-chan T) <-chan T](<#func-fanin>)
+- [func FanInWithContext[T any](ctx context.Context, ch1, ch2 <-chan T, channels ...<-chan T) <-chan T](<#func-faninwithcontext>)
+- [func Futute[T any](futureFn func() T) <-chan T](<#func-futute>)
+- [func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T](<#func-fututewithcontext>)
+- [func Queue[T any](genFn func() T) <-chan T](<#func-queue>)
+- [func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T](<#func-queuewithcontext>)
+
+
+### func CancelWithContext
+
+```go
+func CancelWithContext[T any](ctx context.Context, incoming <-chan T) <-chan T
+```
+
+CancelWithContext will return a new channel unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This pattern usually called `Done`, `OrDone`, `Cancel`.
+
+<details><summary>Example</summary>
+<p>
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/butuzov/harmony"
+	"time"
+)
+
+func main() {
+	icnoming := make(chan int)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Creating cancelable pipeline for incoming chan.
+	chOut := harmony.CancelWithContext(ctx, icnoming)
+
+	go func() {
+		defer close(icnoming)
+		for i := 1; i < 100; i++ {
+			icnoming <- i
+		}
+	}()
+
+	var res []int
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		for val := range chOut {
+			res = append(res, val)
+
+			// We going to cancel execution once we reach any number devisable by 7
+			if val%7 == 0 {
+				cancel()
+			}
+
+			time.Sleep(time.Millisecond)
+
+		}
+	}()
+
+	<-done
+
+	fmt.Println(res)
+}
+```
+
+#### Output
+
+```
+[1 2 3 4 5 6 7]
+```
+
+</p>
+</details>
+
+### func FanIn
+
+```go
+func FanIn[T any](ch1, ch2 <-chan T, channels ...<-chan T) <-chan T
+```
+
+FanIn returns unbuffered channel of generic type `T` which is serving as a delivery pipeline for the values received from at least 2 incoming channels, it is closed once all of the incoming channels are closed.
+
+### func FanInWithContext
+
+```go
+func FanInWithContext[T any](ctx context.Context, ch1, ch2 <-chan T, channels ...<-chan T) <-chan T
+```
+
+FanInWithContext returns unbuffered channel of generic type `T` which serves as delivery pipeline for the values received from at least 2 incoming channels, its closed once all of the incoming channels closed or context cancelled.
+
+<details><summary>Example</summary>
+<p>
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/butuzov/harmony"
+	"sync"
+	"time"
+)
+
+func main() {
+	ch1 := make(chan int)
+	ch2 := make(chan int)
+
+	// Context going to timeout in 70 milliseconds.
+	ctx, cancel := context.WithTimeout(context.Background(), 70*time.Millisecond)
+	defer cancel()
+
+	ch := harmony.FanInWithContext(ctx, ch1, ch2)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(ch1)
+
+		for i := 0; i < 5; i++ {
+			ch1 <- i
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		wg.Wait()
+		defer close(ch2)
+
+		for i := 5; i <= 10; i++ {
+			ch2 <- i
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	var res []int
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		for v := range ch {
+			res = append(res, v)
+		}
+	}()
+
+	<-done
+	fmt.Println(res)
+}
+```
+
+#### Output
+
+```
+[0 1 2 3 4 5 6]
+```
+
+</p>
+</details>
+
+### func Futute
+
+```go
+func Futute[T any](futureFn func() T) <-chan T
+```
+
+Future will return buffered channel of size 1 and generic type `T` which eventually will contain the result of the execution futureFn
+
+### func FututeWithContext
+
+```go
+func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T
+```
+
+FututeWithContext.T any. will return buffered channel of size 1 and generic type `T`, which will eventually contain the results of the execution futureFn, or be closed in case if context cancelled.
+
+### func Queue
+
+```go
+func Queue[T any](genFn func() T) <-chan T
+```
+
+Queue returns an unbuffered channel populated by func genFn. It's similar to `Future` pattern but doesn't have a limit to just one result. Queue is leaking goroutine, and provided purly for consistency reasons. Use `QueueWithContext` to prevent leaking resources.
+
+<details><summary>Example</summary>
+<p>
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/butuzov/harmony"
+)
+
+func main() {
+	// fin returns function  that returns Fibonacci sequence up to n element,
+	// it returns 0 after limit reached.
+	fib := func(limit int) func() int {
+		a, b, nTh := 0, 1, 1
+		return func() int {
+			if nTh > limit {
+				return 0
+			}
+
+			nTh++
+			a, b = b, a+b
+			return a
+		}
+	}
+
+	first10FibNumbers := make([]int, 10)
+	incoming := harmony.Queue(fib(10))
+	for i := 0; i < cap(first10FibNumbers); i++ {
+		first10FibNumbers[i] = <-incoming
+	}
+
+	fmt.Println(first10FibNumbers)
+}
+```
+
+#### Output
+
+```
+[1 1 2 3 5 8 13 21 34 55]
+```
+
+</p>
+</details>
+
+### func QueueWithContext
+
+```go
+func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T
+```
+
+QueueWithContext.T any. returns an unbuffered channel thats is populated by func genFn. Chan is closed once context is Done. It's similar to Future pattern, but doesn't have limit to just one result.
+
 <!-- End --->
 <!-- You can Edit Content under this comment --->
 

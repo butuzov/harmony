@@ -5,14 +5,14 @@ import (
 	"sync"
 )
 
-// FanIn[T any] returns unbuffered channel of type T which serves as delivery pipeline
-// for the values received from at least 2 incoming channels, its closed once
-// all of the incoming channels closed.
+// FanIn returns unbuffered channel of generic type `T` which is serving as a
+// delivery pipeline for the values received from at least 2 incoming channels,
+// it is closed once all of the incoming channels are closed.
 func FanIn[T any](ch1, ch2 <-chan T, channels ...<-chan T) <-chan T {
 	return fanIn(context.Background(), ch1, ch2, channels...)
 }
 
-// FanInWithContext[T any] returns unbuffered channel of type T which serves as
+// FanInWithContext returns unbuffered channel of generic type `T` which serves as
 // delivery pipeline for the values received from at least 2 incoming channels,
 // its closed once all of the incoming channels closed or context cancelled.
 func FanInWithContext[T any](ctx context.Context, ch1, ch2 <-chan T, channels ...<-chan T) <-chan T {

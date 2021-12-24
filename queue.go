@@ -4,11 +4,10 @@ import (
 	"context"
 )
 
-// Queue[T any] returns an unbuffered channel tpopulated by
-// func genFn. It's similar to Future pattern, but doesn't have
-// limit to just one result. Queue[T any] leeking goroutine, because of no way
-// to stop generator function, please use QueueWithContext if you want prevent
-// leaeking go routine.
+// Queue returns an unbuffered channel populated by func genFn. It's similar to
+// `Future` pattern but doesn't have a limit to just one result. Queue is leaking
+// goroutine, and provided purly for consistency reasons. Use `QueueWithContext`
+// to prevent leaking resources.
 func Queue[T any](genFn func() T) <-chan T {
 	return QueueWithContext(context.Background(), genFn)
 }

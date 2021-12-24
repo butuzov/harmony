@@ -2,11 +2,11 @@ package harmony
 
 import "context"
 
-// CancelWithContext will return new channel unbuffered channel of type T
-// that serve as pipeline for the incoming channel. Channel is closed once
-// context cancelled or incoming channel closed. This pattern usually called
-// `Done`, `OrDone`, `Cancel`.
-func CancelWithContext[T any](ctx context.Context, incoming <-chan T) chan T {
+// CancelWithContext will return a new channel unbuffered channel of type `T`
+// that serves as a pipeline for the incoming channel. Channel is closed once
+// the context is canceled or the incoming channel is closed. This pattern
+// usually called `Done`, `OrDone`, `Cancel`.
+func CancelWithContext[T any](ctx context.Context, incoming <-chan T) <-chan T {
 	ch := make(chan T)
 
 	go func() {
