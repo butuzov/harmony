@@ -1,0 +1,26 @@
+{{- codeHref .Location | link (escape .Name) | printf "type %s" | rawHeader .Level -}}
+
+{{- template "doc" .Doc -}}
+
+{{- codeBlock "go" .Decl -}}
+
+{{- range .Consts -}}
+	{{- template "value" . -}}
+{{- end -}}
+
+{{- range .Vars -}}
+	{{- template "value" . -}}
+{{- end -}}
+
+{{- range .Examples -}}
+	{{- template "example" . -}}
+{{- end -}}
+
+{{- range .Funcs -}}
+	{{- template "func" . -}}
+{{- end -}}
+
+{{- range .Methods -}}
+	{{- template "func" . -}}
+{{- end -}}
+
