@@ -5,5 +5,6 @@
 	- `OrDone` / `Done` / `CancelWithContext`
 	- `Feature`
 	- `Queue`
+	- `WorkerPool`
 */
 package harmony
