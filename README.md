@@ -14,7 +14,8 @@ Package `harmony` provides generic concurrency patterns library, created for edu
 - `FanIn` 
 - `OrDone` / `Done` / `CancelWithContext` 
 - `Feature` 
-- `Queue`
+- `Queue` 
+- `WorkerPool`
 
 ### Index
 
@@ -25,6 +26,8 @@ Package `harmony` provides generic concurrency patterns library, created for edu
 - [func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T](<#func-fututewithcontext>)
 - [func Queue[T any](genFn func() T) <-chan T](<#func-queue>)
 - [func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T](<#func-queuewithcontext>)
+- [func WorkerPool[T any](totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpool>)
+- [func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpoolwithcontext>)
 
 
 ### func CancelWithContext
@@ -260,14 +263,100 @@ func main() {
 func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T
 ```
 
-QueueWithContext.T any. returns an unbuffered channel thats is populated by func genFn. Chan is closed once context is Done. It's similar to Future pattern, but doesn't have limit to just one result.
+QueueWithContext returns an unbuffered channel thats is populated by func genFn. Chan is closed once context is Done. It's similar to Future pattern, but doesn't have limit to just one result.
+
+### func WorkerPool
+
+```go
+func WorkerPool[T any](totalWorkers int, workerFn func(T)) chan<- T
+```
+
+WorkerPool returns channel of generic type `T` which excepts jobs of the same type for some number of workers that do workerFn. If you want to stop WorkerPool, close the jobQueue channel.
+
+### func WorkerPoolWithContext
+
+```go
+func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerFn func(T)) chan<- T
+```
+
+WorkerPool returns channel of generic type `T` which excepts jobs of the same type for some number of workers that do workerFn. If you want to stop WorkerPool, close the jobQueue channel or cancel the context.
+
+<details><summary>Example</summary>
+<p>
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/butuzov/harmony"
+	"math"
+	"runtime"
+	"sync"
+	"time"
+)
+
+func main() {
+	// Search for all possible primes within short period of time.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	var (
+		primesCh = make(chan uint64)
+		isPrime  = func(n uint64) bool {
+			for i := uint64(2); i < (n/2)+1; i++ {
+				if n%i == 0 {
+					return false
+				}
+			}
+			return true
+		}
+		totalWorkers = runtime.NumCPU() - 1
+	)
+
+	jobsQueue := harmony.WorkerPoolWithContext(ctx, totalWorkers, func(n uint64) {
+		if !isPrime(n) {
+			return
+		}
+
+		primesCh <- n
+	})
+
+	go func() {
+		for i := uint64(0); i < math.MaxUint64; i++ {
+			jobsQueue <- i
+		}
+	}()
+
+	var results []uint64
+	var mu sync.RWMutex
+	go func() {
+		for n := range primesCh {
+			mu.Lock()
+			results = append(results, n)
+			mu.Unlock()
+		}
+	}()
+
+	<-ctx.Done()
+	close(primesCh)
+
+	mu.RLock()
+	fmt.Println(results)
+	mu.RUnlock()
+}
+```
+
+</p>
+</details>
 
 <!-- End --->
 <!-- You can Edit Content under this comment --->
 
 ## Resources
 
-* `talk` [Bryan C. Mills - Rethinking Classical Concurrency Patterns](https://www.youtube.com/watch?v=5zXAHh5tJqQ) + [`slides`](https://drive.google.com/file/d/1nPdvhB0PutEJzdCq5ms6UI58dp50fcAN/view)
+* `talk` [Bryan C. Mills - Rethinking Classical Concurrency Patterns](https://www.youtube.com/watch?v=5zXAHh5tJqQ) + [`slides`](https://drive.google.com/file/d/1nPdvhB0PutEJzdCq5ms6UI58dp50fcAN/view) + [`comments+notes`](https://github.com/sourcegraph/gophercon-2018-liveblog/issues/35)
 * `book` [Katherine Cox-Buday - Concurrency In Go](https://www.oreilly.com/library/view/concurrency-in-go/9781491941294/)
 * `talk` [Rob Pike - Concurrency is not Parallelism](https://www.youtube.com/watch?v=oV9rvDllKEg) + [`slides`](https://go.dev/talks/2012/waza.slide)
 * `blog` [Go Concurrency Patterns: Context](https://go.dev/blog/context)
