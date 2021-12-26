@@ -4,8 +4,6 @@ import (
 	"context"
 )
 
-type token struct{}
-
 // WorkerPool returns channel of generic type `T` which excepts jobs of the same type
 // for some number of workers that do workerFn. If you want to stop WorkerPool, close
 // the jobQueue channel.
@@ -21,20 +19,18 @@ func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerF
 	busyWorkers := make(chan token, totalWorkers)
 
 	go func() {
-
 		// wait for all workers to finish.
-		defer func(){
-			for i:=0; i < totalWorkers; i++ {
+		defer func() {
+			for i := 0; i < totalWorkers; i++ {
 				busyWorkers <- token{}
 			}
 		}()
-
 
 		for {
 			var job T
 
 			select {
-			case <- ctx.Done():
+			case <-ctx.Done():
 				return
 			case tmp, ok := <-ch:
 				if !ok {
@@ -42,7 +38,6 @@ func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerF
 				}
 				job = tmp
 			}
-
 
 			// Execution is blocked until we able to get one more work permit for this
 			// job. Pattern described by Bryan C. Miles
@@ -57,4 +52,3 @@ func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerF
 
 	return ch
 }
-
