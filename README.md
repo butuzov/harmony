@@ -10,96 +10,27 @@ Generic Concurrency Patterns Library
 import "github.com/butuzov/harmony"
 ```
 
-Package `harmony` provides generic concurrency patterns library, created for educational proposes by it's author. It provides next patterns: 
-- `FanIn` 
-- `OrDone` / `Done` / `CancelWithContext` 
-- `Feature` 
-- `Queue` 
+Package `harmony` provides generic concurrency patterns library, created for educational proposes by it's author. It provides next patterns:
+- `FanIn`
+- `OrDone` / `Done` / `CancelWithContext`
+- `Feature`
+- `Queue`
 - `WorkerPool`
 
 ### Index
 
-- [func CancelWithContext[T any](ctx context.Context, incoming <-chan T) <-chan T](<#func-cancelwithcontext>)
 - [func FanIn[T any](ch1, ch2 <-chan T, channels ...<-chan T) <-chan T](<#func-fanin>)
 - [func FanInWithContext[T any](ctx context.Context, ch1, ch2 <-chan T, channels ...<-chan T) <-chan T](<#func-faninwithcontext>)
 - [func Futute[T any](futureFn func() T) <-chan T](<#func-futute>)
 - [func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T](<#func-fututewithcontext>)
+- [func OrContextDone[T any](ctx context.Context, incoming <-chan T) <-chan T](<#func-orcontextdone>)
+- [func OrDone[T any](done chan struct{}, incoming <-chan T) <-chan T](<#func-ordone>)
 - [func Queue[T any](genFn func() T) <-chan T](<#func-queue>)
 - [func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T](<#func-queuewithcontext>)
+- [func QueueWithDone[T any](done chan struct{}, genFn func() T) <-chan T](<#func-queuewithdone>)
 - [func WorkerPool[T any](totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpool>)
 - [func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpoolwithcontext>)
 
-
-### func CancelWithContext
-
-```go
-func CancelWithContext[T any](ctx context.Context, incoming <-chan T) <-chan T
-```
-
-CancelWithContext will return a new channel unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This pattern usually called `Done`, `OrDone`, `Cancel`.
-
-<details><summary>Example</summary>
-<p>
-
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"github.com/butuzov/harmony"
-	"time"
-)
-
-func main() {
-	icnoming := make(chan int)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Creating cancelable pipeline for incoming chan.
-	chOut := harmony.CancelWithContext(ctx, icnoming)
-
-	go func() {
-		defer close(icnoming)
-		for i := 1; i < 100; i++ {
-			icnoming <- i
-		}
-	}()
-
-	var res []int
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-
-		for val := range chOut {
-			res = append(res, val)
-
-			// We going to cancel execution once we reach any number devisable by 7
-			if val%7 == 0 {
-				cancel()
-			}
-
-			time.Sleep(time.Millisecond)
-
-		}
-	}()
-
-	<-done
-
-	fmt.Println(res)
-}
-```
-
-#### Output
-
-```
-[1 2 3 4 5 6 7]
-```
-
-</p>
-</details>
 
 ### func FanIn
 
@@ -203,13 +134,96 @@ func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T
 
 FututeWithContext.T any. will return buffered channel of size 1 and generic type `T`, which will eventually contain the results of the execution futureFn, or be closed in case if context cancelled.
 
+### func OrContextDone
+
+```go
+func OrContextDone[T any](ctx context.Context, incoming <-chan T) <-chan T
+```
+
+OrContextDone will return a new unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This is variation or the pattern that usually called `OrDone`, `Cancel`.
+
+<details><summary>Example</summary>
+<p>
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/butuzov/harmony"
+)
+
+func main() {
+	var (
+		done     = make(chan struct{})
+		incoming = make(chan int)
+		outgoing = harmony.OrDone(done, incoming)
+		results  []int
+	)
+
+	// producer
+	go func() {
+		defer close(incoming)
+		for i := 1; i < 10000; i++ {
+			incoming <- i
+		}
+	}()
+
+	// consumer
+	for val := range outgoing {
+		results = append(results, val)
+		// We going to cancel execution once we reach any number devisable by 7
+		if val%7 == 0 {
+			close(done)
+		}
+	}
+
+	<-done
+
+	fmt.Println(results)
+}
+```
+
+#### Output
+
+```
+[1 2 3 4 5 6 7]
+```
+
+</p>
+</details>
+
+### func OrDone
+
+```go
+func OrDone[T any](done chan struct{}, incoming <-chan T) <-chan T
+```
+
+OrDone will return a new unbuffered channel of type `T` that serves as a pipeline for the values from the incoming channel. Channel is closed once the done chan is closed or the incoming channel is closed. This is the pattern that usually called `OrDone`, `Cancel`.
+
 ### func Queue
 
 ```go
 func Queue[T any](genFn func() T) <-chan T
 ```
 
-Queue returns an unbuffered channel populated by func genFn. It's similar to `Future` pattern but doesn't have a limit to just one result. Queue is leaking goroutine, and provided purly for consistency reasons. Use `QueueWithContext` to prevent leaking resources.
+Queue returns an unbuffered channel that is populated by func genFn. Chan is closed once context is Done. It's similar to `Future` pattern, but doesn't have a limit to just one result. Also: it's leaking gorotine.
+
+### func QueueWithContext
+
+```go
+func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T
+```
+
+QueueWithContext returns an unbuffered channel that is populated by func `genFn`. Chan is closed once context is Done. It's similar to `Future` pattern, but doesn't have a limit to just one result.
+
+### func QueueWithDone
+
+```go
+func QueueWithDone[T any](done chan struct{}, genFn func() T) <-chan T
+```
+
+QueueWithContext returns an unbuffered channel that is populated by the func `genFn`. Chan is closed once done chan is closed. It's similar to `Future` pattern, but doesn't have a limit to just one result.
 
 <details><summary>Example</summary>
 <p>
@@ -256,14 +270,6 @@ func main() {
 
 </p>
 </details>
-
-### func QueueWithContext
-
-```go
-func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T
-```
-
-QueueWithContext returns an unbuffered channel thats is populated by func genFn. Chan is closed once context is Done. It's similar to Future pattern, but doesn't have limit to just one result.
 
 ### func WorkerPool
 

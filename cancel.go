@@ -36,7 +36,7 @@ func OrContextDone[T any](ctx context.Context, incoming <-chan T) <-chan T {
 
 // OrDone will return a new unbuffered channel of type `T`
 // that serves as a pipeline for the values from the incoming channel. Channel
-// is closed once the context is canceled or the incoming channel is closed.
+// is closed once the done chan is closed or the incoming channel is closed.
 // This is the pattern that usually called `OrDone`, `Cancel`.
 func OrDone[T any](done chan struct{}, incoming <-chan T) <-chan T {
 	ch := make(chan T)
