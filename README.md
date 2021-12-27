@@ -10,11 +10,12 @@ Generic Concurrency Patterns Library
 import "github.com/butuzov/harmony"
 ```
 
-Package `harmony` provides generic concurrency patterns library, created for educational proposes by it's author. It provides next patterns:
-- `FanIn`
-- `OrDone` / `Done` / `CancelWithContext`
-- `Feature`
-- `Queue`
+Package `harmony` provides generic concurrency patterns library, created for educational proposes by it's author. It provides next patterns: 
+- `FanIn` 
+- `Feature` 
+- `OrDone` / `OrContextDone` 
+- `Queue` 
+- `Tee` 
 - `WorkerPool`
 
 ### Index
@@ -28,6 +29,8 @@ Package `harmony` provides generic concurrency patterns library, created for edu
 - [func Queue[T any](genFn func() T) <-chan T](<#func-queue>)
 - [func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T](<#func-queuewithcontext>)
 - [func QueueWithDone[T any](done chan struct{}, genFn func() T) <-chan T](<#func-queuewithdone>)
+- [func TeeWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, <-chan T)](<#func-teewithcontext>)
+- [func TeeWithDone[T any](done chan struct{}, incoming <-chan T) (<-chan T, <-chan T)](<#func-teewithdone>)
 - [func WorkerPool[T any](totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpool>)
 - [func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpoolwithcontext>)
 
@@ -207,7 +210,7 @@ OrDone will return a new unbuffered channel of type `T` that serves as a pipelin
 func Queue[T any](genFn func() T) <-chan T
 ```
 
-Queue returns an unbuffered channel that is populated by func genFn. Chan is closed once context is Done. It's similar to `Future` pattern, but doesn't have a limit to just one result. Also: it's leaking gorotine.
+Queue returns an unbuffered channel that is populated by func `genFn`. Chan is closed once context is Done. It's similar to `Future` pattern, but doesn't have a limit to just one result. Also: it's leaking gorotine.
 
 ### func QueueWithContext
 
@@ -270,6 +273,24 @@ func main() {
 
 </p>
 </details>
+
+### func TeeWithContext
+
+```go
+func TeeWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, <-chan T)
+```
+
+TeeWithContext will return two channels of generic type `T` used to fan
+-out data from the incoming channel. Channels needs to be read in order next iteration over incoming chanel happen.
+
+### func TeeWithDone
+
+```go
+func TeeWithDone[T any](done chan struct{}, incoming <-chan T) (<-chan T, <-chan T)
+```
+
+TeeWithContext will return two channels of generic type `T` used to fan
+-out data from the incoming channel. Channels needs to be read in order next iteration over incoming chanel happen.
 
 ### func WorkerPool
 

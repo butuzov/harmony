@@ -5,7 +5,7 @@ import (
 )
 
 // Queue returns an unbuffered channel that is populated by
-// func genFn. Chan is closed once context is Done. It's similar to `Future`
+// func `genFn`. Chan is closed once context is Done. It's similar to `Future`
 // pattern, but doesn't have a limit to just one result. Also: it's leaking
 // gorotine.
 func Queue[T any](genFn func() T) <-chan T {
