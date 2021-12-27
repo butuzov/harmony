@@ -35,7 +35,33 @@ func TestQueueWithContext(t *testing.T) {
 	}
 }
 
-func ExampleQueue() {
+func TestQueueWithDone(t *testing.T) {
+	// returns next power of n on each call.
+	pow := func(n uint64) func() uint64 {
+		total := uint64(1)
+
+		return func() uint64 {
+			total *= n
+			return total
+		}
+	}
+
+	done := make(chan struct{})
+
+	powerRes := make([]uint64, 10)
+	powerCh := harmony.QueueWithDone(done, pow(2))
+	for i := 0; i < cap(powerRes); i++ {
+		powerRes[i] = <-powerCh
+	}
+	close(done)
+
+	want := []uint64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
+	if !reflect.DeepEqual(want, powerRes) {
+		t.Errorf("got %v vs want %v", powerRes, want)
+	}
+}
+
+func ExampleQueueWithDone() {
 	// fin returns function  that returns Fibonacci sequence up to n element,
 	// it returns 0 after limit reached.
 	fib := func(limit int) func() int {
