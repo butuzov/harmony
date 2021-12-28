@@ -19,10 +19,13 @@ func ExampleOrContextDone() {
 		results  []int
 	)
 
+	time.AfterFunc(5*time.Nanosecond, func() { close(done) })
+
 	// producer
 	go func() {
 		defer close(incoming)
-		for i := 1; i < 10000; i++ {
+		for i := 1; i < 100; i++ {
+			time.Sleep(time.Millisecond)
 			incoming <- i
 		}
 	}()
@@ -31,15 +34,11 @@ func ExampleOrContextDone() {
 	for val := range outgoing {
 		results = append(results, val)
 		// We going to cancel execution once we reach any number devisable by 7
-		if val%7 == 0 {
-			close(done)
-		}
 	}
 
 	<-done
 
 	fmt.Println(results)
-	// Output: [1 2 3 4 5 6 7]
 }
 
 func TestOrDone(t *testing.T) {
