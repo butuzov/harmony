@@ -11,6 +11,7 @@ import "github.com/butuzov/harmony"
 ```
 
 Package `harmony` provides generic concurrency patterns library, created for educational proposes by it's author. It provides next patterns: 
+- 'Pipeline` 
 - `FanIn` 
 - `Feature` 
 - `OrDone` / `OrContextDone` 
@@ -26,13 +27,15 @@ Package `harmony` provides generic concurrency patterns library, created for edu
 - [func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T](<#func-fututewithcontext>)
 - [func OrContextDone[T any](ctx context.Context, incoming <-chan T) <-chan T](<#func-orcontextdone>)
 - [func OrDone[T any](done chan struct{}, incoming <-chan T) <-chan T](<#func-ordone>)
+- [func PipelineWithContext[T any](ctx context.Context, incoming <-chan T, totalWorkers int, workerFn func(T) T) <-chan T](<#func-pipelinewithcontext>)
+- [func PipelineWithDone[T any](done chan struct{}, incoming <-chan T, totalWorkers int, workerFn func(T) T) <-chan T](<#func-pipelinewithdone>)
 - [func Queue[T any](genFn func() T) <-chan T](<#func-queue>)
 - [func QueueWithContext[T any](ctx context.Context, genFn func() T) <-chan T](<#func-queuewithcontext>)
 - [func QueueWithDone[T any](done chan struct{}, genFn func() T) <-chan T](<#func-queuewithdone>)
 - [func TeeWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, <-chan T)](<#func-teewithcontext>)
 - [func TeeWithDone[T any](done chan struct{}, incoming <-chan T) (<-chan T, <-chan T)](<#func-teewithdone>)
-- [func WorkerPool[T any](totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpool>)
 - [func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpoolwithcontext>)
+- [func WorkerPoolWithDone[T any](done chan struct{}, totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpoolwithdone>)
 
 
 ### func FanIn
@@ -143,7 +146,7 @@ FututeWithContext.T any. will return buffered channel of size 1 and generic type
 func OrContextDone[T any](ctx context.Context, incoming <-chan T) <-chan T
 ```
 
-OrContextDone will return a new unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This is variation or the pattern that usually called `OrDone`, `Cancel`.
+OrContextDone will return a new unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This is variation or the pattern that usually called `OrDone` or`Cancel`.
 
 <details><summary>Example</summary>
 <p>
@@ -154,6 +157,7 @@ package main
 import (
 	"fmt"
 	"github.com/butuzov/harmony"
+	"time"
 )
 
 func main() {
@@ -164,10 +168,13 @@ func main() {
 		results  []int
 	)
 
+	time.AfterFunc(5*time.Nanosecond, func() { close(done) })
+
 	// producer
 	go func() {
 		defer close(incoming)
-		for i := 1; i < 10000; i++ {
+		for i := 1; i < 100; i++ {
+			time.Sleep(time.Millisecond)
 			incoming <- i
 		}
 	}()
@@ -176,21 +183,12 @@ func main() {
 	for val := range outgoing {
 		results = append(results, val)
 		// We going to cancel execution once we reach any number devisable by 7
-		if val%7 == 0 {
-			close(done)
-		}
 	}
 
 	<-done
 
 	fmt.Println(results)
 }
-```
-
-#### Output
-
-```
-[1 2 3 4 5 6 7]
 ```
 
 </p>
@@ -202,7 +200,149 @@ func main() {
 func OrDone[T any](done chan struct{}, incoming <-chan T) <-chan T
 ```
 
-OrDone will return a new unbuffered channel of type `T` that serves as a pipeline for the values from the incoming channel. Channel is closed once the done chan is closed or the incoming channel is closed. This is the pattern that usually called `OrDone`, `Cancel`.
+OrDone will return a new unbuffered channel of type `T` that serves as a pipeline for the values from the incoming channel. Channel is closed once the done chan is closed or the incoming channel is closed. This pattern usually called `OrDone` or `Cancel`.
+
+### func PipelineWithContext
+
+```go
+func PipelineWithContext[T any](ctx context.Context, incoming <-chan T, totalWorkers int, workerFn func(T) T) <-chan T
+```
+
+PipelineWithContext returns the channel of generic type `T` that can serve as a pipeline for the next stage. It's implemented in same manner as a `WorkerPool` and allows to specify number of workers that going to proseed values received from the incoming channel. Outgoing channel is going to be closed once the incoming chan is closed or context canceld.
+
+<details><summary>Example</summary>
+<p>
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/butuzov/harmony"
+	"sort"
+)
+
+func main() {
+	lim := 10
+
+	seedCh := func() <-chan int {
+		ch := make(chan int)
+
+		go func() {
+			defer close(ch)
+
+			for i := 0; i <= lim; i++ {
+				ch <- i
+			}
+		}()
+
+		return ch
+	}()
+
+	ctx := context.Background()
+
+	var pipe <-chan int
+
+	// we starting many subWorkers because we don't care about order of results
+	// read from the pipe.
+	pipe = seedCh
+	// does nothing
+	pipe = harmony.PipelineWithContext(ctx, pipe, 2, func(n int) int { return n })
+	// does multiplication
+	pipe = harmony.PipelineWithContext(ctx, pipe, 3, func(n int) int { return n * 2 })
+	// does addition
+	pipe = harmony.PipelineWithContext(ctx, pipe, 3, func(n int) int { return n + 2 })
+
+	result := []int{}
+	for val := range pipe {
+		result = append(result, val)
+	}
+
+	sort.Ints(result)
+	fmt.Printf("%v", result)
+}
+```
+
+#### Output
+
+```
+[2 4 6 8 10 12 14 16 18 20 22]
+```
+
+</p>
+</details>
+
+### func PipelineWithDone
+
+```go
+func PipelineWithDone[T any](done chan struct{}, incoming <-chan T, totalWorkers int, workerFn func(T) T) <-chan T
+```
+
+PipelineWithCDone returns the channel of generic type `T` that can serve as a pipeline for a next stage. It's implemented in same manner as a `WorkerPool` and allows to specify number of workers that going to proseed values received from the incoming channel. Outgoing channel is going to be closed once the incoming chan is closed or done is closed.
+
+<details><summary>Example</summary>
+<p>
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/butuzov/harmony"
+	"sort"
+)
+
+func main() {
+	lim := 10
+
+	seedCh := func() <-chan int {
+		ch := make(chan int)
+
+		go func() {
+			defer close(ch)
+
+			for i := 0; i <= lim; i++ {
+				ch <- i
+			}
+		}()
+
+		return ch
+	}()
+
+	done := make(chan struct{})
+	defer close(done)
+
+	var pipe <-chan int
+
+	// we starting many subWorkers because we don't care about order of results
+	// read from the pipe.
+	pipe = seedCh
+	// does nothing
+	pipe = harmony.PipelineWithDone(done, pipe, 2, func(n int) int { return n })
+	// does multiplication
+	pipe = harmony.PipelineWithDone(done, pipe, 3, func(n int) int { return n * 2 })
+	// does addition
+	pipe = harmony.PipelineWithDone(done, pipe, 3, func(n int) int { return n + 2 })
+
+	result := []int{}
+	for val := range pipe {
+		result = append(result, val)
+	}
+
+	sort.Ints(result)
+	fmt.Printf("%v", result)
+}
+```
+
+#### Output
+
+```
+[2 4 6 8 10 12 14 16 18 20 22]
+```
+
+</p>
+</details>
 
 ### func Queue
 
@@ -292,21 +432,13 @@ func TeeWithDone[T any](done chan struct{}, incoming <-chan T) (<-chan T, <-chan
 TeeWithContext will return two channels of generic type `T` used to fan
 -out data from the incoming channel. Channels needs to be read in order next iteration over incoming chanel happen.
 
-### func WorkerPool
-
-```go
-func WorkerPool[T any](totalWorkers int, workerFn func(T)) chan<- T
-```
-
-WorkerPool returns channel of generic type `T` which excepts jobs of the same type for some number of workers that do workerFn. If you want to stop WorkerPool, close the jobQueue channel.
-
 ### func WorkerPoolWithContext
 
 ```go
 func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerFn func(T)) chan<- T
 ```
 
-WorkerPool returns channel of generic type `T` which excepts jobs of the same type for some number of workers that do workerFn. If you want to stop WorkerPool, close the jobQueue channel or cancel the context.
+WorkerPoolWithContext returns channel of generic type `T` which excepts jobs of the same type for some number of workers that do workerFn. If you want to stop WorkerPool, close the jobQueue channel or cancel the context.
 
 <details><summary>Example</summary>
 <p>
@@ -377,6 +509,14 @@ func main() {
 
 </p>
 </details>
+
+### func WorkerPoolWithDone
+
+```go
+func WorkerPoolWithDone[T any](done chan struct{}, totalWorkers int, workerFn func(T)) chan<- T
+```
+
+WorkerPoolWithDone returns channel of generic type `T` which excepts jobs of the same type for some number of workers that do workerFn. If you want to stop WorkerPool, close the jobQueue channel or close a `done` chan.
 
 <!-- End --->
 <!-- You can Edit Content under this comment --->
