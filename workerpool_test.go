@@ -17,14 +17,16 @@ import (
 	"github.com/butuzov/harmony"
 )
 
-func TestWorkerPool(t *testing.T) {
+func TestWorkerPoolWithDone(t *testing.T) {
 	resCh := make(chan string)
 	jobFn := func(s string) {
 		time.Sleep(time.Duration(rand.Int63n(10)) * time.Millisecond)
 		resCh <- strings.ToUpper(s)
 	}
 
-	jobsQueue := harmony.WorkerPool[string](3, jobFn)
+	done := make(chan struct{})
+
+	jobsQueue := harmony.WorkerPoolWithDone(done, 3, jobFn)
 
 	// assigning jobs
 	input := []string{"foo", "bar", "baz", "boom", "faz"}
