@@ -2,7 +2,6 @@ package harmony_test
 
 import (
 	"context"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -78,16 +77,14 @@ func TestTeeWithContext_ContextDone(t *testing.T) {
 			defer close(ch)
 			for i := 1; i <= 9; i++ {
 				ch <- i
-				time.Sleep(100 * time.Microsecond)
 			}
 		}()
 
 		return ch
 	}()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Nanosecond)
 	t.Cleanup(cancel)
-	time.AfterFunc(500*time.Microsecond, cancel)
 
 	ch1, ch2 := harmony.TeeWithContext(ctx, gen)
 	wg := sync.WaitGroup{}
@@ -111,8 +108,8 @@ func TestTeeWithContext_ContextDone(t *testing.T) {
 
 	wg.Wait()
 
-	if !reflect.DeepEqual(res1, res2) {
-		t.Errorf("different results: %v vs %v", res1, res2)
+	if len(*res1) == 10 || len(*res2) == 10 {
+		t.Errorf("unexpected results: res1(%v) && res2(%v)", res1, res2)
 	}
 }
 
@@ -125,7 +122,6 @@ func TestTeeWithDone_Done(t *testing.T) {
 			defer close(ch)
 			for i := 1; i <= 9; i++ {
 				ch <- i
-				time.Sleep(100 * time.Microsecond)
 			}
 		}()
 
@@ -133,7 +129,7 @@ func TestTeeWithDone_Done(t *testing.T) {
 	}()
 
 	done := make(chan struct{})
-	time.AfterFunc(500*time.Microsecond, func() { close(done) })
+	time.AfterFunc(5*time.Nanosecond, func() { close(done) })
 
 	ch1, ch2 := harmony.TeeWithDone(done, gen)
 	wg := sync.WaitGroup{}
@@ -157,7 +153,7 @@ func TestTeeWithDone_Done(t *testing.T) {
 
 	wg.Wait()
 
-	if !reflect.DeepEqual(res1, res2) {
-		t.Errorf("different results: %v vs %v", res1, res2)
+	if len(*res1) == 10 || len(*res2) == 10 {
+		t.Errorf("unexpected results: res1(%v) && res2(%v)", res1, res2)
 	}
 }
