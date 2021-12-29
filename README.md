@@ -11,16 +11,18 @@ import "github.com/butuzov/harmony"
 ```
 
 Package `harmony` provides generic concurrency patterns library, created for educational proposes by it's author. It provides next patterns: 
-- 'Pipeline` 
+- `Bridge` 
 - `FanIn` 
 - `Feature` 
 - `OrDone` / `OrContextDone` 
+- `Pipeline` 
 - `Queue` 
 - `Tee` 
 - `WorkerPool`
 
 ### Index
 
+- [func BridgeWithContext[T any](ctx context.Context, incoming <-chan (<-chan T)) <-chan T](<#func-bridgewithcontext>)
 - [func FanIn[T any](ch1, ch2 <-chan T, channels ...<-chan T) <-chan T](<#func-fanin>)
 - [func FanInWithContext[T any](ctx context.Context, ch1, ch2 <-chan T, channels ...<-chan T) <-chan T](<#func-faninwithcontext>)
 - [func Futute[T any](futureFn func() T) <-chan T](<#func-futute>)
@@ -37,6 +39,14 @@ Package `harmony` provides generic concurrency patterns library, created for edu
 - [func WorkerPoolWithContext[T any](ctx context.Context, totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpoolwithcontext>)
 - [func WorkerPoolWithDone[T any](done chan struct{}, totalWorkers int, workerFn func(T)) chan<- T](<#func-workerpoolwithdone>)
 
+
+### func BridgeWithContext
+
+```go
+func BridgeWithContext[T any](ctx context.Context, incoming <-chan (<-chan T)) <-chan T
+```
+
+BridgeWithContext will return chan of generic type `T` used a pipe for the values received from the sequence of channels. Close channel .received from `incoming`. in order to  switch for a new one. Goroutines exists on close of `incoming` or context canceled.
 
 ### func FanIn
 
@@ -279,7 +289,7 @@ func main() {
 func PipelineWithDone[T any](done chan struct{}, incoming <-chan T, totalWorkers int, workerFn func(T) T) <-chan T
 ```
 
-PipelineWithCDone returns the channel of generic type `T` that can serve as a pipeline for a next stage. It's implemented in same manner as a `WorkerPool` and allows to specify number of workers that going to proseed values received from the incoming channel. Outgoing channel is going to be closed once the incoming chan is closed or done is closed.
+PipelineWithDone returns the channel of generic type `T` that can serve as a pipeline for a next stage. It's implemented in same manner as a `WorkerPool` and allows to specify number of workers that going to proseed values received from the incoming channel. The returned channel is going to be closed once one of incoming or done channels are closed.
 
 <details><summary>Example</summary>
 <p>

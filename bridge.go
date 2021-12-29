@@ -4,6 +4,10 @@ import (
 	"context"
 )
 
+// BridgeWithContext will return chan of generic type `T` used a pipe for the
+// values received from the sequence of channels. Close channel (received from
+// `incoming`) in order to  switch for a new one. Goroutines exists on close of
+// `incoming` or context canceled.
 func BridgeWithContext[T any](ctx context.Context, incoming <-chan (<-chan T)) <-chan T {
 	outgoing := make(chan T)
 

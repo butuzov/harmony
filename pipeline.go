@@ -54,11 +54,11 @@ func PipelineWithContext[T any](
 	return outgoing
 }
 
-// PipelineWithCDone returns the channel of generic type `T` that can serve
+// PipelineWithDone returns the channel of generic type `T` that can serve
 // as a pipeline for a next stage. It's implemented in same manner as a
 // `WorkerPool` and allows to specify number of workers that going to proseed
-// values received from the incoming channel. Outgoing channel is going to be
-// closed once the incoming chan is closed or done is closed.
+// values received from the incoming channel. The returned channel is going to
+// be closed once one of incoming or done channels are closed.
 func PipelineWithDone[T any](
 	done chan struct{},
 	incoming <-chan T,
