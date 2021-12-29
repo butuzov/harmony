@@ -35,47 +35,6 @@ func testFillChan(t *testing.T, ch chan int, n func() int, ticker *time.Ticker, 
 	}
 }
 
-func TestFanIn(t *testing.T) {
-	// given: given two channels
-	ch1 := make(chan int) // fills with n in decrising order (suppose to fill first half of slice)
-	ch2 := make(chan int) // fills with n in incrising order (suppose to fill second half of slice)
-	chOut := harmony.FanIn(ch1, ch2)
-
-	// then fill them with data
-	go testFillChan(t,
-		ch1,
-		func() func() int { n := 100; return func() int { n--; return n } }(),
-		time.NewTicker(10*time.Microsecond), // fill rate (100µs)
-		time.NewTimer(100*time.Millisecond), // start at  (100ms)
-		time.NewTimer(200*time.Millisecond), // stop at   (200ms)
-	)
-	go testFillChan(t,
-		ch2,
-		func() func() int { n := 100; return func() int { n++; return n } }(),
-		time.NewTicker(10*time.Microsecond), // fill rate (100µs)
-		time.NewTimer(200*time.Millisecond), // start at  (200ms)
-		time.NewTimer(300*time.Millisecond), // stop at   (300ms)
-	)
-
-	// when: with sync
-	var got []int
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for val := range chOut {
-			got = append(got, val)
-		}
-	}()
-	wg.Wait()
-	// then: check if out channel same
-
-	want := []int{99, 98, 97, 96, 95, 94, 93, 92, 91, 101, 102, 103, 104, 105, 106, 107, 108, 109}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("failed: want (%v) vs got (%v) ", want, got)
-	}
-}
-
 func TestFanInWithContext(t *testing.T) {
 	// given: given two channels
 	ch1 := make(chan int) // fills with n in decrising order (suppose to fill first half of slice)

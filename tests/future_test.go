@@ -41,20 +41,21 @@ func ExampleFuture_Dogs() {
 		return data.Message
 	}
 
-	a := harmony.Futute(func() string {
-		return getRandomDogPicture(context.Background())
+	ctx := context.Background()
+	a := harmony.FututeWithContext(ctx, func() string {
+		return getRandomDogPicture(ctx)
 	})
-	b := harmony.Futute(func() string {
-		return getRandomDogPicture(context.Background())
+	b := harmony.FututeWithContext(ctx, func() string {
+		return getRandomDogPicture(ctx)
 	})
 	fmt.Printf("Rate My Dog: \n\ta) %s\n\tb) %s\n", <-a, <-b)
 }
 
 func ExampleFuture() {
 	// Requests random dogs picture from dog.ceo (dog as service)
-
-	a := harmony.Futute(func() int { return 1 })
-	b := harmony.Futute(func() int { return 0 })
+	ctx := context.Background()
+	a := harmony.FututeWithContext(ctx, func() int { return 1 })
+	b := harmony.FututeWithContext(ctx, func() int { return 0 })
 	fmt.Println(<-a, <-b)
 	// Output: 1 0
 }

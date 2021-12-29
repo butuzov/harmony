@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/butuzov/harmony"
 )
@@ -20,14 +21,14 @@ func TestQueueWithContext(t *testing.T) {
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	t.Cleanup(cancel)
 
 	powerRes := make([]uint64, 10)
 	powerCh := harmony.QueueWithContext(ctx, pow(2))
 	for i := 0; i < cap(powerRes); i++ {
 		powerRes[i] = <-powerCh
 	}
-	cancel()
 
 	want := []uint64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 	if !reflect.DeepEqual(want, powerRes) {
@@ -78,7 +79,7 @@ func ExampleQueueWithDone() {
 	}
 
 	first10FibNumbers := make([]int, 10)
-	incoming := harmony.Queue(fib(10))
+	incoming := harmony.QueueWithContext(context.Background(), fib(10))
 	for i := 0; i < cap(first10FibNumbers); i++ {
 		first10FibNumbers[i] = <-incoming
 	}

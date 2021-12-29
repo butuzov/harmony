@@ -11,11 +11,11 @@ import (
 	"github.com/butuzov/harmony"
 )
 
-func ExampleOrContextDone() {
+func ExampleOrWithDone() {
 	var (
 		done     = make(chan struct{})
 		incoming = make(chan int)
-		outgoing = harmony.OrDone(done, incoming)
+		outgoing = harmony.OrWithDone(done, incoming)
 		results  []int
 	)
 
@@ -30,10 +30,8 @@ func ExampleOrContextDone() {
 		}
 	}()
 
-	// consumer
 	for val := range outgoing {
 		results = append(results, val)
-		// We going to cancel execution once we reach any number devisable by 7
 	}
 
 	<-done
@@ -41,11 +39,11 @@ func ExampleOrContextDone() {
 	fmt.Println(results)
 }
 
-func TestOrDone(t *testing.T) {
+func TestOrWithDone(t *testing.T) {
 	var (
 		done     = make(chan struct{})
 		incoming = make(chan int)
-		outgoing = harmony.OrDone(done, incoming)
+		outgoing = harmony.OrWithDone(done, incoming)
 		limit    = rand.Intn(25_000) // rand to make it shorter.
 	)
 
@@ -68,11 +66,11 @@ func TestOrDone(t *testing.T) {
 	}
 }
 
-func TestOrDone_WithDone(t *testing.T) {
+func TestOrWithDone_WithDone(t *testing.T) {
 	var (
 		done     = make(chan struct{})
 		incoming = make(chan int)
-		outgoing = harmony.OrDone(done, incoming)
+		outgoing = harmony.OrWithDone(done, incoming)
 		limit    = 25_000
 	)
 
@@ -98,7 +96,7 @@ func TestOrDone_WithDone(t *testing.T) {
 	}
 }
 
-func TestOrContextDone(t *testing.T) {
+func TestOrWithContext(t *testing.T) {
 	incoming := make(chan int)
 	go func() {
 		defer close(incoming)
@@ -108,7 +106,7 @@ func TestOrContextDone(t *testing.T) {
 	}()
 
 	// Creating cancelable pipeline for incoming chan.
-	chOut := harmony.OrContextDone(context.Background(), incoming)
+	chOut := harmony.OrWithContext(context.Background(), incoming)
 	var res []int
 	want := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 	for val := range chOut {
@@ -120,13 +118,14 @@ func TestOrContextDone(t *testing.T) {
 	}
 }
 
-func TestOrContextDone_WithContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+func TestOrWithContext_WithContext(t *testing.T) {
+	// close done after 0.001 sec... (approx ~1k channel messages)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	t.Cleanup(cancel)
 
 	var (
 		incoming = make(chan int)
-		outgoing = harmony.OrContextDone(ctx, incoming)
+		outgoing = harmony.OrWithContext(ctx, incoming)
 		limit    = 25_000
 	)
 
@@ -137,10 +136,6 @@ func TestOrContextDone_WithContext(t *testing.T) {
 			incoming <- i
 		}
 	}()
-
-	// close done after 0.001 sec... (approx ~1k channel messages)
-	timer := time.AfterFunc(time.Millisecond, func() { cancel() })
-	t.Cleanup(func() { timer.Stop() })
 
 	var lastRead int
 	for val := range outgoing {
