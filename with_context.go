@@ -105,14 +105,10 @@ func FututeWithContext[T any](ctx context.Context, futureFn func() T) <-chan T {
 
 	go func() {
 		defer close(ch)
-
-		select {
-		case <-ctx.Done():
-		case ch <- futureFn():
-		}
+		ch <- futureFn()
 	}()
 
-	return ch
+	return OrWithContext(ctx, ch)
 }
 
 // --- OrDone Pattern  ---------------------------------------------------------
@@ -151,19 +147,19 @@ func OrWithContext[T any](ctx context.Context, incoming <-chan T) <-chan T {
 
 // --- Pipeline Pattern  -------------------------------------------------------
 
-// PipelineWithContext returns the channel of generic type `T` that can serve
-// as a pipeline for the next stage. It's implemented in same manner as a
-// `WorkerPool` and allows to specify number of workers that going to proseed
+// PipelineWithContext returns the channel of generic type `T2` that can serve
+// as a pipeline for the next stage. It's implemented in almost same manner as
+// a `WorkerPool` and allows to specify number of workers that going to proseed
 // values received from the incoming channel. Outgoing channel is going to be
 // closed once the incoming chan is closed or context canceld.
-func PipelineWithContext[T any](
+func PipelineWithContext[T1, T2 any](
 	ctx context.Context,
-	incoming <-chan T,
+	incoming <-chan T1,
 	totalWorkers int,
-	workerFn func(T) T,
-) <-chan T {
+	workerFn func(T1) T2,
+) <-chan T2 {
 
-	outgoing := make(chan T)
+	outgoing := make(chan T2)
 	workers := make(chan token, totalWorkers)
 
 	go func() {
@@ -178,7 +174,7 @@ func PipelineWithContext[T any](
 		}()
 
 		for {
-			var job T
+			var job T1
 
 			select {
 			case <-ctx.Done():
@@ -258,21 +254,21 @@ func TeeWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, <-
 
 // --- WorkerPool Pattern  -----------------------------------------------------
 
-// WorkerPoolWithContext returns channel of generic type `T` which excepts jobs
-// of the same type for some number of workers that do workerFn. If you want to
-// stop WorkerPool, close the jobQueue channel or cancel the context.
+// WorkerPoolWithContext accepts channel of generic type `T` which is used to
+// serve jobs to max workersTotal workers. Goroutines stop: Once channel closed and drained,
+// or context cancelled.
 func WorkerPoolWithContext[T any](
 	ctx context.Context,
-	totalWorkers int,
-	workerFn func(T),
-) chan<- T {
-	ch := make(chan T)                            // channel for the jobs.
-	busyWorkers := make(chan token, totalWorkers) // semaphore for the workers
+	jobQueue chan T,
+	maxWorkers int,
+	workFunc func(T),
+) {
+	busyWorkers := make(chan token, maxWorkers) // semaphore for the workers
 
 	go func() {
 		// wait for all workers to finish.
 		defer func() {
-			for i := 0; i < totalWorkers; i++ {
+			for i := 0; i < maxWorkers; i++ {
 				busyWorkers <- token{}
 			}
 		}()
@@ -283,7 +279,7 @@ func WorkerPoolWithContext[T any](
 			select {
 			case <-ctx.Done():
 				return
-			case tmp, ok := <-ch:
+			case tmp, ok := <-jobQueue:
 				if !ok {
 					return
 				}
@@ -294,12 +290,9 @@ func WorkerPoolWithContext[T any](
 			// job. Pattern described by Bryan C. Miles
 			busyWorkers <- token{}
 			go func() {
-				workerFn(job)
+				workFunc(job)
 				<-busyWorkers
 			}()
-
 		}
 	}()
-
-	return ch
 }
