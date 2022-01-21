@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"math/rand"
 	"net/http"
 	"runtime"
 	"sync"
@@ -179,7 +180,6 @@ func ExamplePipelineWithContext_Primes() {
 	}
 
 	fmt.Println(results)
-	// Output: 10
 }
 
 // --- Queue Pattern Example ---------------------------------------------------
@@ -298,4 +298,73 @@ func ExampleWorkerPoolWithContext_Primes() {
 	mu.RLock()
 	fmt.Println(results)
 	mu.RUnlock()
+}
+
+// Other Examples
+
+// Example_fastestSqrt dmonstrates combination of few techniques
+func Example_fastestSqrt() {
+	// the fastert square root cracker....
+	type Report struct {
+		Method string
+		Value  uint64
+	}
+
+	var (
+		// Babylonian method
+		sqrtBabylonian = func(n uint64) Report {
+			var (
+				o = float64(n) // Original value as float64
+				x = float64(n) // x of binary search
+				y = 1.0        // y of binary search
+				e = 1e-5       // error
+			)
+
+			for x-y > e {
+				x = (x + y) / 2
+				y = o / x
+				// fmt.Printf("y=%f, x=%f\n", y, x)
+			}
+
+			return Report{"Babylonian", uint64(x)}
+		}
+
+		// Bakhshali method
+		sqrtBakhshali = func(n uint64) Report {
+			iterate := func(x float64) float64 {
+				a := (float64(n) - x*x) / (2 * x)
+				xa := x + a
+				return xa - ((a * a) / (2 * xa))
+			}
+
+			var (
+				o = float64(n)
+				x = float64(n) / 2.0
+				e = 1e-5
+			)
+
+			for x*x-o > e {
+				x = iterate(x)
+			}
+			return Report{"Bakhshali", uint64(x)}
+		}
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch := harmony.FututeWithContext(ctx, func() uint64 {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		v := r.Uint64()
+		fmt.Printf("Initial number: %d\n", v)
+		return v
+	})
+
+	ch1, ch2 := harmony.TeeWithContext(ctx, ch)
+
+	out := harmony.FanInWithContext(ctx,
+		harmony.OrWithContext(ctx, harmony.PipelineWithContext(ctx, ch1, 1, sqrtBabylonian)),
+		harmony.OrWithContext(ctx, harmony.PipelineWithContext(ctx, ch2, 1, sqrtBakhshali)),
+	)
+	fmt.Printf("Result is :%v", <-out)
 }
