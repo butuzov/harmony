@@ -302,7 +302,8 @@ func ExampleWorkerPoolWithContext_Primes() {
 
 // Other Examples
 
-// Example_fastestSqrt dmonstrates combination of few techniques
+// What SQRT funtion is faster? Complex example that shows combination of few
+// patterns Queue, Tee, FanIn patterns.
 func Example_fastestSqrt() {
 	// the fastert square root cracker....
 	type Report struct {
