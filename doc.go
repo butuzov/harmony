@@ -4,7 +4,7 @@
 	- `Bridge`
 	- `FanIn`
 	- `Feature`
-	- `OrDone` / `OrContextDone`
+	- `OrWithDone` / `OrWithDone`
 	- `Pipeline`
 	- `Queue`
 	- `Tee`

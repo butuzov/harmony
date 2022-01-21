@@ -3,8 +3,11 @@ GO := $(shell command -v go1.18beta1 || echo "go")
 
 test:
 	$(GO) test -v -race -failfast -parallel=2  \
-	-count=10 -timeout=1m \
-	-cover  -covermode=atomic -coverprofile=coverage.out
+	-count=10 -timeout=20s \
+	-cover  -covermode=atomic \
+	-coverpkg=github.com/butuzov/harmony \
+	-coverprofile=coverage.out \
+	./...
 
 cover: test
 	go tool cover -html=coverage.out
