@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -18,6 +20,30 @@ import (
 // --- Bridge Pattern Example --------------------------------------------------
 
 // --- Fan-in Pattern Example --------------------------------------------------
+func ExampleFanInWithContext() {
+	// return channel that generate
+	filler := func(start, stop int) chan int {
+		ch := make(chan int)
+
+		go func() {
+			defer close(ch)
+			for i := start; i <= stop; i++ {
+				ch <- i
+			}
+		}()
+
+		return ch
+	}
+
+	ch1 := filler(10, 12)
+	ch2 := filler(12, 14)
+	ch3 := filler(15, 16)
+
+	ctx := context.Background()
+	for val := range harmony.FanInWithContext(ctx, ch1, ch2, ch3) {
+		fmt.Println(val)
+	}
+}
 
 // --- Future Pattern Example --------------------------------------------------
 
@@ -113,8 +139,77 @@ func ExampleOrWithContext_Fibonacci() {
 }
 
 // --- Pipeline Pattern Example ------------------------------------------------
+func ExamplePipelineWithContext_Primes() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+
+	var (
+		incomingCh = make(chan uint64)
+		isPrime    = func(n uint64) bool {
+			for i := uint64(2); i < (n/2)+1; i++ {
+				if n%i == 0 {
+					return false
+				}
+			}
+			return true
+		}
+	)
+
+	var results []uint64
+	workerFunc := func(n uint64) uint64 {
+		if isPrime(n) {
+			return n
+		}
+		return 0
+	}
+
+	// Producer: Initial numbers
+	go func() {
+		for i := uint64(0); i < math.MaxUint64; i++ {
+			incomingCh <- i
+		}
+	}()
+
+	for val := range harmony.PipelineWithContext(ctx, incomingCh, 100, workerFunc) {
+		if val == 0 {
+			continue
+		}
+
+		results = append(results, val)
+	}
+
+	fmt.Println(results)
+	// Output: 10
+}
 
 // --- Queue Pattern Example ---------------------------------------------------
+
+// Generate fibonacci sequence
+func ExampleQueueWithContext() {
+	// fin returns function  that returns Fibonacci sequence up to n element,
+	// it returns 0 after limit reached.
+	fib := func(limit int) func() int {
+		a, b, nTh := 0, 1, 1
+		return func() int {
+			if nTh > limit {
+				return 0
+			}
+
+			nTh++
+			a, b = b, a+b
+			return a
+		}
+	}
+
+	first10FibNumbers := make([]int, 10)
+	incoming := harmony.QueueWithContext(context.Background(), fib(10))
+	for i := 0; i < cap(first10FibNumbers); i++ {
+		first10FibNumbers[i] = <-incoming
+	}
+
+	fmt.Println(first10FibNumbers)
+	// Output: [1 1 2 3 5 8 13 21 34 55]
+}
 
 // --- Tee Pattern Example -----------------------------------------------------
 
@@ -145,8 +240,8 @@ func ExampleTeeWithDone() {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
-	go consumer(ch1, &wg, func(i int) { sum += i })
-	go consumer(ch2, &wg, func(i int) { prod *= i })
+	go consumer(ch1, &wg, func(i int) { sum += i })  // Sum
+	go consumer(ch2, &wg, func(i int) { prod *= i }) // Product/Factorial
 
 	wg.Wait()
 	fmt.Printf("Sequence sum is %d. Sequence product is %d", sum, prod)
@@ -154,3 +249,53 @@ func ExampleTeeWithDone() {
 }
 
 // --- WorkerPool Pattern  Example ---------------------------------------------
+
+func ExampleWorkerPoolWithContext_Primes() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+
+	var (
+		primesCh   = make(chan uint64)
+		incomingCh = make(chan uint64)
+		isPrime    = func(n uint64) bool {
+			for i := uint64(2); i < (n/2)+1; i++ {
+				if n%i == 0 {
+					return false
+				}
+			}
+			return true
+		}
+		totalWorkers = runtime.NumCPU() - 1
+	)
+
+	// Producer: Initial numbers
+	go func() {
+		for i := uint64(0); i < math.MaxUint64; i++ {
+			incomingCh <- i
+		}
+	}()
+
+	// Consumers Worker Pool: checking primes of incoming numbers.
+	harmony.WorkerPoolWithContext(ctx, incomingCh, totalWorkers, func(n uint64) {
+		if !isPrime(n) {
+			return
+		}
+		primesCh <- n
+	})
+
+	var results []uint64
+	var mu sync.RWMutex
+	go func() {
+		for n := range primesCh {
+			mu.Lock()
+			results = append(results, n)
+			mu.Unlock()
+		}
+	}()
+
+	<-ctx.Done()
+
+	mu.RLock()
+	fmt.Println(results)
+	mu.RUnlock()
+}
