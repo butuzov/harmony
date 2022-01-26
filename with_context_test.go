@@ -78,10 +78,10 @@ func TestFanInWithContext(t *testing.T) {
 
 			// given:
 			chOut, err := harmony.FanInWithContext(ctx,
-				generateNumberSequence(1, 10),
-				generateNumberSequence(1, 10),
-				generateNumberSequence(1, 10),
-				generateNumberSequence(1, 10),
+				generateNumberSequence(1, 100),
+				generateNumberSequence(1, 100),
+				generateNumberSequence(1, 100),
+				generateNumberSequence(1, 100),
 			)
 			if err != nil {
 				t.Errorf("fanin err: %v", err)
@@ -94,7 +94,7 @@ func TestFanInWithContext(t *testing.T) {
 			}
 
 			// then:
-			if (len(results) == 40) != test.expected {
+			if (len(results) == 400) != test.expected {
 				t.Errorf("unexpected: len(results) is %d", len(results))
 			}
 		})
@@ -310,7 +310,7 @@ func TestQueueWithContext(t *testing.T) {
 
 			want := []uint64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 			if reflect.DeepEqual(want, powerRes) != test.expected {
-				t.Errorf("got %v vs want (%t)%v", powerRes, test.expected, want)
+				t.Errorf("got(%v) == want(%v) isn't %t", powerRes, want, test.expected)
 			}
 		})
 	}
