@@ -4,17 +4,27 @@
 package harmony
 
 import (
+	"errors"
 	"sync"
 )
+
+var ErrDone = errors.New("harmony: nil done chant")
 
 // --- Bridge Pattern  ---------------------------------------------------------
 
 // BridgeWithDone will return chan of generic type `T` used a pipe for the
-// values received from the sequence of channels. Close channel (received from
-// `incoming`) in order to  switch for a new one. Goroutines exists on close of
-// `incoming` or done chan closed.
-func BridgeWithDone[T any](done <-chan struct{}, incoming <-chan (<-chan T)) <-chan T {
+// values received from the sequence of channels or `ErrDone`. Close received
+// channel (one you got from`incoming`) in order to switch for a new one.
+// Goroutines exists on close of `incoming` or done chan closed.
+func BridgeWithDone[T any](
+	done <-chan struct{},
+	incoming <-chan (<-chan T),
+) (<-chan T, error) {
 	outgoing := make(chan T)
+
+	if done == nil {
+		return nil, ErrDone
+	}
 
 	go func() {
 		defer close(outgoing)
@@ -33,16 +43,17 @@ func BridgeWithDone[T any](done <-chan struct{}, incoming <-chan (<-chan T)) <-c
 				stream = tmp
 			}
 
-			// now we ae trying to actually read from channel, and pass value next to
+			// Now we are trying to actually read from channel, and pass value next to
 			// its receive channel, if fail to read back to new iteration of this
 			// loop.
-			for val := range OrWithDone(done, stream) {
+			ch, _ := OrWithDone(done, stream)
+			for val := range ch {
 				outgoing <- val
 			}
 		}
 	}()
 
-	return outgoing
+	return outgoing, nil
 }
 
 // --- Fan-in Pattern  ---------------------------------------------------------
@@ -50,7 +61,11 @@ func BridgeWithDone[T any](done <-chan struct{}, incoming <-chan (<-chan T)) <-c
 // FanInWithDone returns unbuffered channel of generic type `T` which serves as
 // delivery pipeline for the values received from at least 2 incoming channels,
 // its closed once all of the incoming channels closed or done is closed
-func FanInWithDone[T any](done <-chan struct{}, ch1, ch2 <-chan T, channels ...<-chan T) <-chan T {
+func FanInWithDone[T any](done <-chan struct{}, ch1, ch2 <-chan T, channels ...<-chan T) (<-chan T, error) {
+	if done == nil {
+		return nil, ErrDone
+	}
+
 	var wg sync.WaitGroup
 	ch := make(chan T)
 
@@ -70,7 +85,7 @@ func FanInWithDone[T any](done <-chan struct{}, ch1, ch2 <-chan T, channels ...<
 		close(ch)
 	}()
 
-	return ch
+	return ch, nil
 }
 
 func passWithDone[T any](done <-chan struct{}, wg *sync.WaitGroup, out chan<- T, in <-chan T) {
@@ -100,7 +115,11 @@ func passWithDone[T any](done <-chan struct{}, wg *sync.WaitGroup, out chan<- T,
 // FututeWithDone[T any] will return buffered channel of size 1 and generic type `T`,
 // which will eventually contain the results of the execution `futureFn``, or be closed
 // in case if context cancelled.
-func FututeWithDone[T any](done <-chan struct{}, futureFn func() T) <-chan T {
+func FututeWithDone[T any](done <-chan struct{}, futureFn func() T) (<-chan T, error) {
+	if done == nil {
+		return nil, ErrDone
+	}
+
 	ch := make(chan T, 1)
 
 	go func() {
@@ -117,7 +136,11 @@ func FututeWithDone[T any](done <-chan struct{}, futureFn func() T) <-chan T {
 // that serves as a pipeline for the incoming channel. Channel is closed once
 // the context is canceled or the incoming channel is closed. This is variation
 // or the pattern that usually called `OrWithDone` or`Cancel`.
-func OrWithDone[T any](done <-chan struct{}, incoming <-chan T) <-chan T {
+func OrWithDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, error) {
+	if done == nil {
+		return nil, ErrDone
+	}
+
 	ch := make(chan T)
 
 	go func() {
@@ -142,7 +165,7 @@ func OrWithDone[T any](done <-chan struct{}, incoming <-chan T) <-chan T {
 		}
 	}()
 
-	return ch
+	return ch, nil
 }
 
 // --- Pipeline Pattern  -------------------------------------------------------
@@ -154,17 +177,21 @@ func OrWithDone[T any](done <-chan struct{}, incoming <-chan T) <-chan T {
 // closed once the incoming chan is closed or context canceld.
 func PipelineWithDone[T1, T2 any](
 	done <-chan struct{},
-	incoming <-chan T1,
+	incomingCh <-chan T1,
 	totalWorkers int,
 	workerFn func(T1) T2,
-) <-chan T2 {
+) (<-chan T2, error) {
 
-	outgoing := make(chan T2)
+	if done == nil {
+		return nil, ErrDone
+	}
+
+	outgoingCH := make(chan T2)
 	workers := make(chan token, totalWorkers)
 
 	go func() {
 		// close outgoing channel
-		defer close(outgoing)
+		defer close(outgoingCH)
 
 		// wait for each worker to finish work.
 		defer func() {
@@ -179,7 +206,7 @@ func PipelineWithDone[T1, T2 any](
 			select {
 			case <-done:
 				return
-			case tmp, ok := <-incoming:
+			case tmp, ok := <-incomingCh:
 				if !ok {
 					return
 				}
@@ -188,13 +215,13 @@ func PipelineWithDone[T1, T2 any](
 
 			workers <- token{}
 			go func() {
-				outgoing <- workerFn(job)
+				outgoingCH <- workerFn(job)
 				<-workers
 			}()
 		}
 	}()
 
-	return outgoing
+	return outgoingCH, nil
 }
 
 // --- Queue Pattern -----------------------------------------------------------
@@ -202,7 +229,11 @@ func PipelineWithDone[T1, T2 any](
 // QueueWithDone returns an unbuffered channel that is populated by
 // func `genFn`. Chan is closed once context is Done. It's similar to `Future`
 // pattern, but doesn't have a limit to just one result.
-func QueueWithDone[T any](done <-chan struct{}, genFn func() T) <-chan T {
+func QueueWithDone[T any](done <-chan struct{}, genFn func() T) (<-chan T, error) {
+	if done == nil {
+		return nil, ErrDone
+	}
+
 	ch := make(chan T)
 
 	go func() {
@@ -217,7 +248,7 @@ func QueueWithDone[T any](done <-chan struct{}, genFn func() T) <-chan T {
 		}
 	}()
 
-	return ch
+	return ch, nil
 }
 
 // --- Tee Pattern -------------------------------------------------------------
@@ -225,14 +256,19 @@ func QueueWithDone[T any](done <-chan struct{}, genFn func() T) <-chan T {
 // TeeWithDone will return two channels of generic type `T` used to fan-out
 // data from the incoming channel. Channels needs to be read in order next
 // iteration over incoming chanel happen.
-func TeeWithDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, <-chan T) {
+func TeeWithDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, <-chan T, error) {
+	incomingCh, err := OrWithDone(done, incoming)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	ch1, ch2 := make(chan T), make(chan T)
 
 	go func() {
 		defer close(ch1)
 		defer close(ch2)
 
-		for val := range OrWithDone(done, incoming) {
+		for val := range incomingCh {
 			ch1, ch2 := ch1, ch2
 			for i := 0; i < 2; i++ {
 				select {
@@ -249,7 +285,7 @@ func TeeWithDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, <-ch
 		}
 	}()
 
-	return ch1, ch2
+	return ch1, ch2, nil
 }
 
 // --- WorkerPool Pattern  -----------------------------------------------------
@@ -262,7 +298,12 @@ func WorkerPoolWithDone[T any](
 	jobQueue chan T,
 	maxWorkers int,
 	workFunc func(T),
-) {
+) error {
+
+	if done == nil {
+		return ErrDone
+	}
+
 	busyWorkers := make(chan token, maxWorkers) // semaphore for the workers
 
 	go func() {
@@ -295,4 +336,6 @@ func WorkerPoolWithDone[T any](
 			}()
 		}
 	}()
+
+	return nil
 }

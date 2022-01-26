@@ -41,8 +41,10 @@ func ExampleFanInWithContext() {
 	ch3 := filler(15, 16)
 
 	ctx := context.Background()
-	for val := range harmony.FanInWithContext(ctx, ch1, ch2, ch3) {
-		fmt.Println(val)
+	if ch, err := harmony.FanInWithContext(ctx, ch1, ch2, ch3); err != nil {
+		for val := range ch {
+			fmt.Println(val)
+		}
 	}
 }
 
@@ -81,13 +83,13 @@ func ExampleFututeWithContext_dogs_as_service() {
 		return data.Message
 	}
 
-	a := harmony.FututeWithContext(context.Background(), func() string {
+	a, _ := harmony.FututeWithContext(context.Background(), func() string {
 		return getRandomDogPicture()
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
-	b := harmony.FututeWithContext(ctx, func() string {
+	b, _ := harmony.FututeWithContext(ctx, func() string {
 		return getRandomDogPicture()
 	})
 	fmt.Printf("Rate My Dog: \n\ta) %s\n\tb) %s\n", <-a, <-b)
@@ -96,8 +98,8 @@ func ExampleFututeWithContext_dogs_as_service() {
 func ExampleFututeWithContext() {
 	// Requests random dogs picture from dog.ceo (dog as service)
 	ctx := context.Background()
-	a := harmony.FututeWithContext(ctx, func() int { return 1 })
-	b := harmony.FututeWithContext(ctx, func() int { return 0 })
+	a, _ := harmony.FututeWithContext(ctx, func() int { return 1 })
+	b, _ := harmony.FututeWithContext(ctx, func() int { return 0 })
 	fmt.Println(<-a, <-b)
 	// Output: 1 0
 }
@@ -132,11 +134,14 @@ func ExampleOrWithContext_Fibonacci() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
 
-	for val := range harmony.OrWithContext(ctx, incoming) {
-		results = append(results, val)
+	if ch, err := harmony.OrWithContext(ctx, incoming); err == nil {
+		for val := range ch {
+			results = append(results, val)
+		}
+		fmt.Println(results)
+	} else {
+		log.Printf("Error: %v", err)
 	}
-
-	fmt.Println(results)
 }
 
 // --- Pipeline Pattern Example ------------------------------------------------
@@ -171,15 +176,17 @@ func ExamplePipelineWithContext_Primes() {
 		}
 	}()
 
-	for val := range harmony.PipelineWithContext(ctx, incomingCh, 100, workerFunc) {
-		if val == 0 {
-			continue
+	if ch, err := harmony.PipelineWithContext(ctx, incomingCh, 100, workerFunc); err != nil {
+		log.Printf("Error: %v", err)
+	} else {
+		for val := range ch {
+			if val == 0 {
+				continue
+			}
+			results = append(results, val)
 		}
-
-		results = append(results, val)
+		fmt.Println(results)
 	}
-
-	fmt.Println(results)
 }
 
 // --- Queue Pattern Example ---------------------------------------------------
@@ -202,7 +209,12 @@ func ExampleQueueWithContext() {
 	}
 
 	first10FibNumbers := make([]int, 10)
-	incoming := harmony.QueueWithContext(context.Background(), fib(10))
+	incoming, err := harmony.QueueWithContext(context.Background(), fib(10))
+	if err != nil {
+		log.Printf("err: %v", err)
+		return
+	}
+
 	for i := 0; i < cap(first10FibNumbers); i++ {
 		first10FibNumbers[i] = <-incoming
 	}
@@ -217,7 +229,7 @@ func ExampleTeeWithDone() {
 	done := make(chan struct{})
 	pipe := make(chan int)
 
-	ch1, ch2 := harmony.TeeWithDone(done, pipe)
+	ch1, ch2, _ := harmony.TeeWithDone(done, pipe)
 
 	// generator
 	go func() {
@@ -354,18 +366,24 @@ func Example_fastestSqrt() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ch := harmony.FututeWithContext(ctx, func() uint64 {
+	ch, _ := harmony.FututeWithContext(ctx, func() uint64 {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		v := r.Uint64()
 		fmt.Printf("Initial number: %d\n", v)
 		return v
 	})
 
-	ch1, ch2 := harmony.TeeWithContext(ctx, ch)
+	if ch1, ch2, err := harmony.TeeWithContext(ctx, ch); err == nil {
+		log.Printf("err: %v", err)
+		return
+	} else {
+		chRep1, _ := harmony.PipelineWithContext(ctx, ch1, 1, sqrtBabylonian)
+		chRep2, _ := harmony.PipelineWithContext(ctx, ch2, 1, sqrtBakhshali)
 
-	out := harmony.FanInWithContext(ctx,
-		harmony.OrWithContext(ctx, harmony.PipelineWithContext(ctx, ch1, 1, sqrtBabylonian)),
-		harmony.OrWithContext(ctx, harmony.PipelineWithContext(ctx, ch2, 1, sqrtBakhshali)),
-	)
-	fmt.Printf("Result is :%v", <-out)
+		chRep1, _ = harmony.OrWithContext(ctx, chRep1)
+		chRep2, _ = harmony.OrWithContext(ctx, chRep2)
+
+		out, _ := harmony.FanInWithContext(ctx, chRep1, chRep2)
+		fmt.Printf("Result is :%v", <-out)
+	}
 }

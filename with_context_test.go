@@ -3,6 +3,7 @@ package harmony_test
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -38,8 +39,12 @@ func TestBridgeWithContext(t *testing.T) {
 
 			// when: channel is drained
 			var results []int
-			for val := range harmony.BridgeWithContext(ctx, incoming(10)) {
-				results = append(results, val)
+			if ch, err := harmony.BridgeWithContext(ctx, incoming(10)); err != nil {
+				t.Errorf("bridge: %v", err)
+			} else {
+				for val := range ch {
+					results = append(results, val)
+				}
 			}
 
 			// then: we checking the results
@@ -47,6 +52,18 @@ func TestBridgeWithContext(t *testing.T) {
 				t.Errorf("unexpected: results len(results) is %d", len(results))
 			}
 		})
+	}
+}
+
+func TestBridgeWithContextNil(t *testing.T) {
+	ch, err := harmony.BridgeWithContext(nil, make(chan (<-chan int)))
+
+	if ch != nil {
+		t.Error("bridge nil chan", ch)
+	}
+
+	if !errors.Is(err, harmony.ErrContext) {
+		t.Errorf("bridge err: %v", err)
 	}
 }
 
@@ -60,12 +77,15 @@ func TestFanInWithContext(t *testing.T) {
 			t.Cleanup(cancel)
 
 			// given:
-			chOut := harmony.FanInWithContext(ctx,
+			chOut, err := harmony.FanInWithContext(ctx,
 				generateNumberSequence(1, 10),
 				generateNumberSequence(1, 10),
 				generateNumberSequence(1, 10),
 				generateNumberSequence(1, 10),
 			)
+			if err != nil {
+				t.Errorf("fanin err: %v", err)
+			}
 
 			// when:
 			var results []int
@@ -81,6 +101,22 @@ func TestFanInWithContext(t *testing.T) {
 	}
 }
 
+func TestFanInWithContextNil(t *testing.T) {
+	ch, err := harmony.FanInWithContext(nil,
+		make(chan int),
+		make(chan int),
+		make(chan int),
+	)
+
+	if ch != nil {
+		t.Error("fanin nil chan", ch)
+	}
+
+	if !errors.Is(err, harmony.ErrContext) {
+		t.Errorf("fanin err: %v", err)
+	}
+}
+
 // --- Future Pattern  ---------------------------------------------------------
 func TestFututeWithContext(t *testing.T) {
 	for name, test := range testTableContext {
@@ -88,10 +124,13 @@ func TestFututeWithContext(t *testing.T) {
 			ctx, cancel := test.fncCtx()
 			t.Cleanup(cancel)
 
-			ch := harmony.FututeWithContext(ctx, func() int {
+			ch, err := harmony.FututeWithContext(ctx, func() int {
 				time.Sleep(time.Millisecond)
 				return 42
 			})
+			if err != nil {
+				t.Errorf("future err: %v", err)
+			}
 
 			var val int
 			var mu sync.Mutex
@@ -122,6 +161,18 @@ func TestFututeWithContext(t *testing.T) {
 	}
 }
 
+func TestFututeWithContextNil(t *testing.T) {
+	ch, err := harmony.FututeWithContext(nil, func() int { return 1 })
+
+	if ch != nil {
+		t.Error("future nil chan", ch)
+	}
+
+	if !errors.Is(err, harmony.ErrContext) {
+		t.Errorf("future err: %v", err)
+	}
+}
+
 // --- OrDone Pattern  ---------------------------------------------------------
 func TestOrWithContext(t *testing.T) {
 	for name, test := range testTableContext {
@@ -133,7 +184,10 @@ func TestOrWithContext(t *testing.T) {
 
 			// given: sequence that ends with some random number.
 			limit := 1_000
-			outgoing := harmony.OrWithContext(ctx, generateNumberSequence(1, limit))
+			outgoing, err := harmony.OrWithContext(ctx, generateNumberSequence(1, limit))
+			if err != nil {
+				t.Errorf("ordone err: %v", err)
+			}
 
 			// when: we run out processor we can finish in time or context can get canceld.
 			var lastReadNumber int
@@ -166,6 +220,18 @@ func TestOrWithContext(t *testing.T) {
 	}
 }
 
+func TestOrWithContextNil(t *testing.T) {
+	ch, err := harmony.OrWithContext(nil, make(chan int))
+
+	if ch != nil {
+		t.Error("orDone nil chan", ch)
+	}
+
+	if !errors.Is(err, harmony.ErrContext) {
+		t.Errorf("orDone err: %v", err)
+	}
+}
+
 // --- Pipeline Pattern  -------------------------------------------------------
 func TestPipelineWithContext(t *testing.T) {
 	for name, test := range testTableContext {
@@ -181,7 +247,10 @@ func TestPipelineWithContext(t *testing.T) {
 				return job
 			}
 
-			pipe := harmony.PipelineWithContext(ctx, generateNumberSequence(1, 10), 1, jobFunc)
+			pipe, err := harmony.PipelineWithContext(ctx, generateNumberSequence(1, 10), 1, jobFunc)
+			if err != nil {
+				t.Errorf("pipeline err: %v", err)
+			}
 
 			// when: pipe is drained
 			results := []int{}
@@ -194,6 +263,18 @@ func TestPipelineWithContext(t *testing.T) {
 				t.Errorf("unexpected: results len(results) is %d", len(results))
 			}
 		})
+	}
+}
+
+func TestPipelineWithContextNil(t *testing.T) {
+	ch, err := harmony.PipelineWithContext(nil, make(chan int), 1, func(n int) int { return n })
+
+	if ch != nil {
+		t.Error("pipeline nil chan", ch)
+	}
+
+	if !errors.Is(err, harmony.ErrContext) {
+		t.Errorf("pipeline err: %v", err)
 	}
 }
 
@@ -219,9 +300,12 @@ func TestQueueWithContext(t *testing.T) {
 			t.Cleanup(cancel)
 
 			powerRes := make([]uint64, 10)
-			powerCh := harmony.QueueWithContext(ctx, pow(2))
-			for i := 0; i < cap(powerRes); i++ {
-				powerRes[i] = <-powerCh
+			if powerCh, err := harmony.QueueWithContext(ctx, pow(2)); err == nil {
+				for i := 0; i < cap(powerRes); i++ {
+					powerRes[i] = <-powerCh
+				}
+			} else {
+				t.Errorf("queue err: %v", err)
 			}
 
 			want := []uint64{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
@@ -229,6 +313,18 @@ func TestQueueWithContext(t *testing.T) {
 				t.Errorf("got %v vs want (%t)%v", powerRes, test.expected, want)
 			}
 		})
+	}
+}
+
+func TestQueueWithContextNil(t *testing.T) {
+	ch, err := harmony.QueueWithContext(nil, func() int { return 1 })
+
+	if ch != nil {
+		t.Error("queue nil chan", ch)
+	}
+
+	if !errors.Is(err, harmony.ErrContext) {
+		t.Errorf("queue err: %v", err)
 	}
 }
 
@@ -244,7 +340,10 @@ func TestTeeWithContext(t *testing.T) {
 			// given: tee generating two channels, and reader that
 			var wg sync.WaitGroup
 
-			ch1, ch2 := harmony.TeeWithContext(ctx, generateNumberSequence(0, 9)) // seq (0...9)
+			ch1, ch2, err := harmony.TeeWithContext(ctx, generateNumberSequence(0, 9)) // seq (0...9)
+			if err != nil {
+				t.Errorf("tee err: %v", err)
+			}
 
 			reader := func(ctx context.Context, in <-chan int) (*[]int, func()) {
 				var n []int
@@ -288,6 +387,18 @@ func TestTeeWithContext(t *testing.T) {
 	}
 }
 
+func TestTeeWithContextNil(t *testing.T) {
+	ch1, ch2, err := harmony.TeeWithContext(nil, make(chan int))
+
+	if ch1 != nil || ch2 != nil {
+		t.Errorf("tee nil chans: %v and %v", ch1, ch2)
+	}
+
+	if !errors.Is(err, harmony.ErrContext) {
+		t.Errorf("queue err: %v", err)
+	}
+}
+
 // --- WorkerPool Pattern  -----------------------------------------------------
 func TestWorkerPoolWithContext(t *testing.T) {
 	for name, test := range testTableContext {
@@ -302,9 +413,12 @@ func TestWorkerPoolWithContext(t *testing.T) {
 			jobQueue := make(chan int)
 
 			// given: we running 100 workers that do nothing but wait for small delay each.
-			harmony.WorkerPoolWithContext(ctx, jobQueue, 100, func(n int) {
+			err := harmony.WorkerPoolWithContext(ctx, jobQueue, 100, func(n int) {
 				delayBusyWork()
 			})
+			if err != nil {
+				t.Errorf("workerpool err: %v", err)
+			}
 
 			go func() {
 				defer func() {
@@ -327,5 +441,13 @@ func TestWorkerPoolWithContext(t *testing.T) {
 				t.Errorf("unexpeced: want(%t) vs got(%t)", test.expected, got)
 			}
 		})
+	}
+}
+
+func TestWorkerPoolWithContextNil(t *testing.T) {
+	err := harmony.WorkerPoolWithContext(nil, make(chan int), 1, func(n int) {})
+
+	if !errors.Is(err, harmony.ErrContext) {
+		t.Errorf("queue err: %v", err)
 	}
 }

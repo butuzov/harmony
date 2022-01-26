@@ -22,7 +22,10 @@ func main() {
 			"ctx.Done()":          "done",
 			"\"context\"\n\t":     "", // meybe better to use goimports?
 			`//go:generate go run ./cmd/internal/gendone/`: "",
-			`or context cancelled.`:                        "or done is closed",
+			`ctx == nil`:            `done == nil`,
+			`ErrContext`:            `ErrDone`,
+			`nil Contex`:            `nil done chan`,
+			`or context cancelled.`: "or done is closed",
 		}
 
 		for _, search := range sortKeyDesc(replacements) {
@@ -43,8 +46,9 @@ func main() {
 		}
 
 		replacements := map[string]string{
-			"WithContext(t *testing.T":     "WithDone(t *testing.T",
-			"WithContext(ctx":              "WithDone(done",
+
+			"WithContext(":                 "WithDone(",
+			"WithContextNil(":              "WithDoneNil(",
 			"testTableContext":             "testTableDone",
 			"ctx, cancel := test.fncCtx()": "done, cancel := test.fncDone()",
 			"<-ctx.Done()":                 "<-done",
@@ -52,6 +56,7 @@ func main() {
 			"ctx,":                         "done,",
 			"\"context\"\n\t":              "", // meybe better to use goimports?
 			`//go:generate go run ./cmd/internal/gendone/`: "",
+			`ErrContext`: `ErrDone`,
 		}
 		for _, search := range sortKeyDesc(replacements) {
 			data = bytes.ReplaceAll(data, []byte(search), []byte(replacements[search]))
