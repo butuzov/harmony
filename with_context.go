@@ -60,7 +60,7 @@ func BridgeWithContext[T any](
 
 // FanInWithContext returns unbuffered channel of generic type `T` which serves as
 // delivery pipeline for the values received from at least 2 incoming channels,
-// its closed once all of the incoming channels closed or context cancelled.
+// it's closed once all of the incoming channels closed or context cancelled.
 func FanInWithContext[T any](ctx context.Context, ch1, ch2 <-chan T, channels ...<-chan T) (<-chan T, error) {
 	if ctx == nil {
 		return nil, ErrContext

@@ -18,9 +18,6 @@ import (
 	"github.com/butuzov/harmony"
 )
 
-// --- Bridge Pattern Example --------------------------------------------------
-
-// --- Fan-in Pattern Example --------------------------------------------------
 func ExampleFanInWithContext() {
 	// return channel that generate
 	filler := func(start, stop int) chan int {
@@ -47,8 +44,6 @@ func ExampleFanInWithContext() {
 		}
 	}
 }
-
-// --- Future Pattern Example --------------------------------------------------
 
 // FututeWithContext is shows creation of two "futures" that are used in our
 // "rate our dogs" startup.
@@ -104,8 +99,6 @@ func ExampleFututeWithContext() {
 	// Output: 1 0
 }
 
-// --- OrDone Pattern Example --------------------------------------------------
-
 // ExampleOrWithContext - shows how many fibonacci sequence numbers we can
 // generate in one millisecond.
 func ExampleOrWithContext_Fibonacci() {
@@ -144,7 +137,6 @@ func ExampleOrWithContext_Fibonacci() {
 	}
 }
 
-// --- Pipeline Pattern Example ------------------------------------------------
 func ExamplePipelineWithContext_Primes() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
@@ -189,8 +181,6 @@ func ExamplePipelineWithContext_Primes() {
 	}
 }
 
-// --- Queue Pattern Example ---------------------------------------------------
-
 // Generate fibonacci sequence
 func ExampleQueueWithContext() {
 	// fin returns function  that returns Fibonacci sequence up to n element,
@@ -222,8 +212,6 @@ func ExampleQueueWithContext() {
 	fmt.Println(first10FibNumbers)
 	// Output: [1 1 2 3 5 8 13 21 34 55]
 }
-
-// --- Tee Pattern Example -----------------------------------------------------
 
 func ExampleTeeWithDone() {
 	done := make(chan struct{})
@@ -259,8 +247,6 @@ func ExampleTeeWithDone() {
 	fmt.Printf("Sequence sum is %d. Sequence product is %d", sum, prod)
 	// Output: Sequence sum is 55. Sequence product is 3628800
 }
-
-// --- WorkerPool Pattern  Example ---------------------------------------------
 
 func ExampleWorkerPoolWithContext_Primes() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
@@ -314,8 +300,8 @@ func ExampleWorkerPoolWithContext_Primes() {
 
 // Other Examples
 
-// What SQRT funtion is faster? Complex example that shows combination of few
-// patterns Queue, Tee, FanIn patterns.
+// What SQRT funtion is faster? Complex example that shows the combination of
+// few patterns Queue, Tee, FanIn patterns.
 func Example_fastestSqrt() {
 	// the fastert square root cracker....
 	type Report struct {
