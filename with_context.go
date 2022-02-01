@@ -16,10 +16,7 @@ var ErrContext = errors.New("harmony: nil Context")
 // values received from the sequence of channels or `ErrContext`. Close received
 // channel (one you got from`incoming`) in order to switch for a new one.
 // Goroutines exists on close of `incoming` or context canceled.
-func BridgeWithContext[T any](
-	ctx context.Context,
-	incoming <-chan (<-chan T),
-) (<-chan T, error) {
+func BridgeWithContext[T any](ctx context.Context,	incoming <-chan (<-chan T)) (<-chan T, error) {
 	outgoing := make(chan T)
 
 	if ctx == nil {
@@ -46,7 +43,7 @@ func BridgeWithContext[T any](
 			// Now we are trying to actually read from channel, and pass value next to
 			// its receive channel, if fail to read back to new iteration of this
 			// loop.
-			ch, _ := OrWithContext(ctx, stream)
+			ch, _ := OrDoneWithContext(ctx, stream)
 			for val := range ch {
 				outgoing <- val
 			}
@@ -127,16 +124,16 @@ func FututeWithContext[T any](ctx context.Context, futureFn func() T) (<-chan T,
 		ch <- futureFn()
 	}()
 
-	return OrWithContext(ctx, ch)
+	return OrDoneWithContext(ctx, ch)
 }
 
 // --- OrDone Pattern  ---------------------------------------------------------
 
-// OrWithDone will return a new unbuffered channel of type `T`
+// OrDoneWithContext will return a new unbuffered channel of type `T`
 // that serves as a pipeline for the incoming channel. Channel is closed once
 // the context is canceled or the incoming channel is closed. This is variation
 // or the pattern that usually called `OrWithDone` or`Cancel`.
-func OrWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, error) {
+func OrDoneWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, error) {
 	if ctx == nil {
 		return nil, ErrContext
 	}
@@ -257,7 +254,7 @@ func QueueWithContext[T any](ctx context.Context, genFn func() T) (<-chan T, err
 // data from the incoming channel. Channels needs to be read in order next
 // iteration over incoming chanel happen.
 func TeeWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, <-chan T, error) {
-	incomingCh, err := OrWithContext(ctx, incoming)
+	incomingCh, err := OrDoneWithContext(ctx, incoming)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -15,9 +15,10 @@ func main() {
 		}
 
 		replacements := map[string]string{
-			"WithContext[T":       "WithDone[T",
+			"WithContext[T":       "[T", // Func Signature
+			"WithContext ":       " ",   // Comment
 			"ctx context.Context": "done <-chan struct{}",
-			"WithContext(ctx":     "WithDone(done",
+			"WithContext(ctx":     "(done",
 			"context canceled":    "done chan closed",
 			"ctx.Done()":          "done",
 			"\"context\"\n\t":     "", // meybe better to use goimports?
@@ -47,8 +48,8 @@ func main() {
 
 		replacements := map[string]string{
 
-			"WithContext(":                 "WithDone(",
-			"WithContextNil(":              "WithDoneNil(",
+			"WithContext(":                 "(",
+			"WithContextNil(":              "_WhereDoneNil(",
 			"testTableContext":             "testTableDone",
 			"ctx, cancel := test.fncCtx()": "done, cancel := test.fncDone()",
 			"<-ctx.Done()":                 "<-done",

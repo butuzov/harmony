@@ -14,7 +14,7 @@ import (
 )
 
 // --- Bridge Pattern  ---------------------------------------------------------
-func TestBridgeWithDone(t *testing.T) {
+func TestBridge(t *testing.T) {
 	for name, test := range testTableDone {
 		name, test := name, test
 
@@ -39,7 +39,7 @@ func TestBridgeWithDone(t *testing.T) {
 
 			// when: channel is drained
 			var results []int
-			if ch, err := harmony.BridgeWithDone(done, incoming(10)); err != nil {
+			if ch, err := harmony.Bridge(done, incoming(10)); err != nil {
 				t.Errorf("bridge: %v", err)
 			} else {
 				for val := range ch {
@@ -55,8 +55,8 @@ func TestBridgeWithDone(t *testing.T) {
 	}
 }
 
-func TestBridgeWithDoneNil(t *testing.T) {
-	ch, err := harmony.BridgeWithDone(nil, make(chan (<-chan int)))
+func TestBridge_WhereDoneNil(t *testing.T) {
+	ch, err := harmony.Bridge(nil, make(chan (<-chan int)))
 
 	if ch != nil {
 		t.Error("bridge nil chan", ch)
@@ -68,7 +68,7 @@ func TestBridgeWithDoneNil(t *testing.T) {
 }
 
 // --- Fan-in Pattern  ---------------------------------------------------------
-func TestFanInWithDone(t *testing.T) {
+func TestFanIn(t *testing.T) {
 	for name, test := range testTableDone {
 		name, test := name, test
 
@@ -77,7 +77,7 @@ func TestFanInWithDone(t *testing.T) {
 			t.Cleanup(cancel)
 
 			// given:
-			chOut, err := harmony.FanInWithDone(done,
+			chOut, err := harmony.FanIn(done,
 				generateNumberSequence(1, 100),
 				generateNumberSequence(1, 100),
 				generateNumberSequence(1, 100),
@@ -101,8 +101,8 @@ func TestFanInWithDone(t *testing.T) {
 	}
 }
 
-func TestFanInWithDoneNil(t *testing.T) {
-	ch, err := harmony.FanInWithDone(nil,
+func TestFanIn_WhereDoneNil(t *testing.T) {
+	ch, err := harmony.FanIn(nil,
 		make(chan int),
 		make(chan int),
 		make(chan int),
@@ -118,13 +118,13 @@ func TestFanInWithDoneNil(t *testing.T) {
 }
 
 // --- Future Pattern  ---------------------------------------------------------
-func TestFututeWithDone(t *testing.T) {
+func TestFutute(t *testing.T) {
 	for name, test := range testTableDone {
 		t.Run(name, func(t *testing.T) {
 			done, cancel := test.fncDone()
 			t.Cleanup(cancel)
 
-			ch, err := harmony.FututeWithDone(done, func() int {
+			ch, err := harmony.Futute(done, func() int {
 				time.Sleep(time.Millisecond)
 				return 42
 			})
@@ -161,8 +161,8 @@ func TestFututeWithDone(t *testing.T) {
 	}
 }
 
-func TestFututeWithDoneNil(t *testing.T) {
-	ch, err := harmony.FututeWithDone(nil, func() int { return 1 })
+func TestFutute_WhereDoneNil(t *testing.T) {
+	ch, err := harmony.Futute(nil, func() int { return 1 })
 
 	if ch != nil {
 		t.Error("future nil chan", ch)
@@ -174,7 +174,7 @@ func TestFututeWithDoneNil(t *testing.T) {
 }
 
 // --- OrDone Pattern  ---------------------------------------------------------
-func TestOrWithDone(t *testing.T) {
+func TestOr(t *testing.T) {
 	for name, test := range testTableDone {
 		name, test := name, test
 
@@ -184,7 +184,7 @@ func TestOrWithDone(t *testing.T) {
 
 			// given: sequence that ends with some random number.
 			limit := 1_000
-			outgoing, err := harmony.OrWithDone(done, generateNumberSequence(1, limit))
+			outgoing, err := harmony.OrDone(done, generateNumberSequence(1, limit))
 			if err != nil {
 				t.Errorf("ordone err: %v", err)
 			}
@@ -220,8 +220,8 @@ func TestOrWithDone(t *testing.T) {
 	}
 }
 
-func TestOrWithDoneNil(t *testing.T) {
-	ch, err := harmony.OrWithDone(nil, make(chan int))
+func TestOr_WhereDoneNil(t *testing.T) {
+	ch, err := harmony.OrDone(nil, make(chan int))
 
 	if ch != nil {
 		t.Error("orDone nil chan", ch)
@@ -233,7 +233,7 @@ func TestOrWithDoneNil(t *testing.T) {
 }
 
 // --- Pipeline Pattern  -------------------------------------------------------
-func TestPipelineWithDone(t *testing.T) {
+func TestPipeline(t *testing.T) {
 	for name, test := range testTableDone {
 		name, test := name, test
 
@@ -247,7 +247,7 @@ func TestPipelineWithDone(t *testing.T) {
 				return job
 			}
 
-			pipe, err := harmony.PipelineWithDone(done, generateNumberSequence(1, 10), 1, jobFunc)
+			pipe, err := harmony.Pipeline(done, generateNumberSequence(1, 10), 1, jobFunc)
 			if err != nil {
 				t.Errorf("pipeline err: %v", err)
 			}
@@ -266,8 +266,8 @@ func TestPipelineWithDone(t *testing.T) {
 	}
 }
 
-func TestPipelineWithDoneNil(t *testing.T) {
-	ch, err := harmony.PipelineWithDone(nil, make(chan int), 1, func(n int) int { return n })
+func TestPipeline_WhereDoneNil(t *testing.T) {
+	ch, err := harmony.Pipeline(nil, make(chan int), 1, func(n int) int { return n })
 
 	if ch != nil {
 		t.Error("pipeline nil chan", ch)
@@ -279,7 +279,7 @@ func TestPipelineWithDoneNil(t *testing.T) {
 }
 
 // --- Queue Pattern -----------------------------------------------------------
-func TestQueueWithDone(t *testing.T) {
+func TestQueue(t *testing.T) {
 	// returns next power of n on each call.
 	pow := func(n uint64) func() uint64 {
 		total := uint64(1)
@@ -300,7 +300,7 @@ func TestQueueWithDone(t *testing.T) {
 			t.Cleanup(cancel)
 
 			powerRes := make([]uint64, 10)
-			if powerCh, err := harmony.QueueWithDone(done, pow(2)); err == nil {
+			if powerCh, err := harmony.Queue(done, pow(2)); err == nil {
 				for i := 0; i < cap(powerRes); i++ {
 					powerRes[i] = <-powerCh
 				}
@@ -316,8 +316,8 @@ func TestQueueWithDone(t *testing.T) {
 	}
 }
 
-func TestQueueWithDoneNil(t *testing.T) {
-	ch, err := harmony.QueueWithDone(nil, func() int { return 1 })
+func TestQueue_WhereDoneNil(t *testing.T) {
+	ch, err := harmony.Queue(nil, func() int { return 1 })
 
 	if ch != nil {
 		t.Error("queue nil chan", ch)
@@ -329,7 +329,7 @@ func TestQueueWithDoneNil(t *testing.T) {
 }
 
 // --- Tee Pattern -------------------------------------------------------------
-func TestTeeWithDone(t *testing.T) {
+func TestTee(t *testing.T) {
 	for name, test := range testTableDone {
 		name, test := name, test
 
@@ -340,7 +340,7 @@ func TestTeeWithDone(t *testing.T) {
 			// given: tee generating two channels, and reader that
 			var wg sync.WaitGroup
 
-			ch1, ch2, err := harmony.TeeWithDone(done, generateNumberSequence(0, 9)) // seq (0...9)
+			ch1, ch2, err := harmony.Tee(done, generateNumberSequence(0, 9)) // seq (0...9)
 			if err != nil {
 				t.Errorf("tee err: %v", err)
 			}
@@ -387,8 +387,8 @@ func TestTeeWithDone(t *testing.T) {
 	}
 }
 
-func TestTeeWithDoneNil(t *testing.T) {
-	ch1, ch2, err := harmony.TeeWithDone(nil, make(chan int))
+func TestTee_WhereDoneNil(t *testing.T) {
+	ch1, ch2, err := harmony.Tee(nil, make(chan int))
 
 	if ch1 != nil || ch2 != nil {
 		t.Errorf("tee nil chans: %v and %v", ch1, ch2)
@@ -400,7 +400,7 @@ func TestTeeWithDoneNil(t *testing.T) {
 }
 
 // --- WorkerPool Pattern  -----------------------------------------------------
-func TestWorkerPoolWithDone(t *testing.T) {
+func TestWorkerPool(t *testing.T) {
 	for name, test := range testTableDone {
 		name, test := name, test
 
@@ -413,7 +413,7 @@ func TestWorkerPoolWithDone(t *testing.T) {
 			jobQueue := make(chan int)
 
 			// given: we running 100 workers that do nothing but wait for small delay each.
-			err := harmony.WorkerPoolWithDone(done, jobQueue, 100, func(n int) {
+			err := harmony.WorkerPool(done, jobQueue, 100, func(n int) {
 				delayBusyWork()
 			})
 			if err != nil {
@@ -444,8 +444,8 @@ func TestWorkerPoolWithDone(t *testing.T) {
 	}
 }
 
-func TestWorkerPoolWithDoneNil(t *testing.T) {
-	err := harmony.WorkerPoolWithDone(nil, make(chan int), 1, func(n int) {})
+func TestWorkerPool_WhereDoneNil(t *testing.T) {
+	err := harmony.WorkerPool(nil, make(chan int), 1, func(n int) {})
 
 	if !errors.Is(err, harmony.ErrDone) {
 		t.Errorf("queue err: %v", err)

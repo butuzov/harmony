@@ -23,7 +23,7 @@ Package `harmony` provides generic concurrency patterns library, created for edu
 <details><summary>Example (Fastest Sqrt)</summary>
 <p>
 
-What SQRT funtion is faster? Complex example that shows combination of few patterns Queue, Tee, FanIn patterns.
+What SQRT funtion is faster? Complex example that shows the combination of few patterns Queue, Tee, FanIn patterns.
 
 ```go
 package main
@@ -101,8 +101,8 @@ func main() {
 		chRep1, _ := harmony.PipelineWithContext(ctx, ch1, 1, sqrtBabylonian)
 		chRep2, _ := harmony.PipelineWithContext(ctx, ch2, 1, sqrtBakhshali)
 
-		chRep1, _ = harmony.OrWithContext(ctx, chRep1)
-		chRep2, _ = harmony.OrWithContext(ctx, chRep2)
+		chRep1, _ = harmony.OrDoneWithContext(ctx, chRep1)
+		chRep2, _ = harmony.OrDoneWithContext(ctx, chRep2)
 
 		out, _ := harmony.FanInWithContext(ctx, chRep1, chRep2)
 		fmt.Printf("Result is :%v", <-out)
@@ -116,22 +116,22 @@ func main() {
 ### Index
 
 - [Variables](<#variables>)
+- [func Bridge[T any](done <-chan struct{}, incoming <-chan (<-chan T)) (<-chan T, error)](<#func-bridge>)
 - [func BridgeWithContext[T any](ctx context.Context, incoming <-chan (<-chan T)) (<-chan T, error)](<#func-bridgewithcontext>)
-- [func BridgeWithDone[T any](done <-chan struct{}, incoming <-chan (<-chan T)) (<-chan T, error)](<#func-bridgewithdone>)
+- [func FanIn[T any](done <-chan struct{}, ch1, ch2 <-chan T, channels ...<-chan T) (<-chan T, error)](<#func-fanin>)
 - [func FanInWithContext[T any](ctx context.Context, ch1, ch2 <-chan T, channels ...<-chan T) (<-chan T, error)](<#func-faninwithcontext>)
-- [func FanInWithDone[T any](done <-chan struct{}, ch1, ch2 <-chan T, channels ...<-chan T) (<-chan T, error)](<#func-faninwithdone>)
+- [func Futute[T any](done <-chan struct{}, futureFn func() T) (<-chan T, error)](<#func-futute>)
 - [func FututeWithContext[T any](ctx context.Context, futureFn func() T) (<-chan T, error)](<#func-fututewithcontext>)
-- [func FututeWithDone[T any](done <-chan struct{}, futureFn func() T) (<-chan T, error)](<#func-fututewithdone>)
-- [func OrWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, error)](<#func-orwithcontext>)
-- [func OrWithDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, error)](<#func-orwithdone>)
+- [func OrDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, error)](<#func-ordone>)
+- [func OrDoneWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, error)](<#func-ordonewithcontext>)
+- [func Pipeline[T1, T2 any](done <-chan struct{}, incomingCh <-chan T1, totalWorkers int, workerFn func(T1) T2) (<-chan T2, error)](<#func-pipeline>)
 - [func PipelineWithContext[T1, T2 any](ctx context.Context, incomingCh <-chan T1, totalWorkers int, workerFn func(T1) T2) (<-chan T2, error)](<#func-pipelinewithcontext>)
-- [func PipelineWithDone[T1, T2 any](done <-chan struct{}, incomingCh <-chan T1, totalWorkers int, workerFn func(T1) T2) (<-chan T2, error)](<#func-pipelinewithdone>)
+- [func Queue[T any](done <-chan struct{}, genFn func() T) (<-chan T, error)](<#func-queue>)
 - [func QueueWithContext[T any](ctx context.Context, genFn func() T) (<-chan T, error)](<#func-queuewithcontext>)
-- [func QueueWithDone[T any](done <-chan struct{}, genFn func() T) (<-chan T, error)](<#func-queuewithdone>)
+- [func Tee[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, <-chan T, error)](<#func-tee>)
 - [func TeeWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, <-chan T, error)](<#func-teewithcontext>)
-- [func TeeWithDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, <-chan T, error)](<#func-teewithdone>)
+- [func WorkerPool[T any](done <-chan struct{}, jobQueue chan T, maxWorkers int, workFunc func(T)) error](<#func-workerpool>)
 - [func WorkerPoolWithContext[T any](ctx context.Context, jobQueue chan T, maxWorkers int, workFunc func(T)) error](<#func-workerpoolwithcontext>)
-- [func WorkerPoolWithDone[T any](done <-chan struct{}, jobQueue chan T, maxWorkers int, workFunc func(T)) error](<#func-workerpoolwithdone>)
 
 
 ### Variables
@@ -144,6 +144,14 @@ var ErrContext = errors.New("harmony: nil Context")
 var ErrDone = errors.New("harmony: nil done chant")
 ```
 
+### func Bridge
+
+```go
+func Bridge[T any](done <-chan struct{}, incoming <-chan (<-chan T)) (<-chan T, error)
+```
+
+Bridge will return chan of generic type `T` used a pipe for the values received from the sequence of channels or `ErrDone`. Close received channel .one you got from`incoming`. in order to switch for a new one. Goroutines exists on close of `incoming` or done chan closed.
+
 ### func BridgeWithContext
 
 ```go
@@ -152,13 +160,13 @@ func BridgeWithContext[T any](ctx context.Context, incoming <-chan (<-chan T)) (
 
 BridgeWithContext will return chan of generic type `T` used a pipe for the values received from the sequence of channels or `ErrContext`. Close received channel .one you got from`incoming`. in order to switch for a new one. Goroutines exists on close of `incoming` or context canceled.
 
-### func BridgeWithDone
+### func FanIn
 
 ```go
-func BridgeWithDone[T any](done <-chan struct{}, incoming <-chan (<-chan T)) (<-chan T, error)
+func FanIn[T any](done <-chan struct{}, ch1, ch2 <-chan T, channels ...<-chan T) (<-chan T, error)
 ```
 
-BridgeWithDone will return chan of generic type `T` used a pipe for the values received from the sequence of channels or `ErrDone`. Close received channel .one you got from`incoming`. in order to switch for a new one. Goroutines exists on close of `incoming` or done chan closed.
+FanIn returns unbuffered channel of generic type `T` which serves as delivery pipeline for the values received from at least 2 incoming channels, it's closed once all of the incoming channels closed or done is closed
 
 ### func FanInWithContext
 
@@ -166,7 +174,7 @@ BridgeWithDone will return chan of generic type `T` used a pipe for the values r
 func FanInWithContext[T any](ctx context.Context, ch1, ch2 <-chan T, channels ...<-chan T) (<-chan T, error)
 ```
 
-FanInWithContext returns unbuffered channel of generic type `T` which serves as delivery pipeline for the values received from at least 2 incoming channels, its closed once all of the incoming channels closed or context cancelled.
+FanInWithContext returns unbuffered channel of generic type `T` which serves as delivery pipeline for the values received from at least 2 incoming channels, it's closed once all of the incoming channels closed or context cancelled.
 
 <details><summary>Example</summary>
 <p>
@@ -211,13 +219,13 @@ func main() {
 </p>
 </details>
 
-### func FanInWithDone
+### func Futute
 
 ```go
-func FanInWithDone[T any](done <-chan struct{}, ch1, ch2 <-chan T, channels ...<-chan T) (<-chan T, error)
+func Futute[T any](done <-chan struct{}, futureFn func() T) (<-chan T, error)
 ```
 
-FanInWithDone returns unbuffered channel of generic type `T` which serves as delivery pipeline for the values received from at least 2 incoming channels, its closed once all of the incoming channels closed or done is closed
+Futute.T any. will return buffered channel of size 1 and generic type `T`, which will eventually contain the results of the execution `futureFn``, or be closed in case if context cancelled.
 
 ### func FututeWithContext
 
@@ -323,86 +331,29 @@ func main() {
 </p>
 </details>
 
-### func FututeWithDone
+### func OrDone
 
 ```go
-func FututeWithDone[T any](done <-chan struct{}, futureFn func() T) (<-chan T, error)
+func OrDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, error)
 ```
 
-FututeWithDone.T any. will return buffered channel of size 1 and generic type `T`, which will eventually contain the results of the execution `futureFn``, or be closed in case if context cancelled.
+OrDone will return a new unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This is variation or the pattern that usually called `OrWithDone` or`Cancel`.
 
-### func OrWithContext
+### func OrDoneWithContext
 
 ```go
-func OrWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, error)
+func OrDoneWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, error)
 ```
 
-OrWithDone will return a new unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This is variation or the pattern that usually called `OrWithDone` or`Cancel`.
+OrDoneWithContext will return a new unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This is variation or the pattern that usually called `OrWithDone` or`Cancel`.
 
-<details><summary>Example (&ibonacci)</summary>
-<p>
-
-ExampleOrWithContext 
-- shows how many fibonacci sequence numbers we can generate in one millisecond.
+### func Pipeline
 
 ```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"github.com/butuzov/harmony"
-	"log"
-	"time"
-)
-
-func main() {
-	var (
-		incoming = make(chan int)
-		results  []int
-		fib      func(int) int
-	)
-
-	fib = func(n int) int {
-		if n < 2 {
-			return n
-		}
-		return fib(n-2) + fib(n-1)
-	}
-
-	// producer
-	go func() {
-		i := 0
-		for {
-			i++
-			incoming <- fib(i)
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	defer cancel()
-
-	if ch, err := harmony.OrWithContext(ctx, incoming); err == nil {
-		for val := range ch {
-			results = append(results, val)
-		}
-		fmt.Println(results)
-	} else {
-		log.Printf("Error: %v", err)
-	}
-}
+func Pipeline[T1, T2 any](done <-chan struct{}, incomingCh <-chan T1, totalWorkers int, workerFn func(T1) T2) (<-chan T2, error)
 ```
 
-</p>
-</details>
-
-### func OrWithDone
-
-```go
-func OrWithDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, error)
-```
-
-OrWithDone will return a new unbuffered channel of type `T` that serves as a pipeline for the incoming channel. Channel is closed once the context is canceled or the incoming channel is closed. This is variation or the pattern that usually called `OrWithDone` or`Cancel`.
+Pipeline returns the channel of generic type `T2` that can serve as a pipeline for the next stage. It's implemented in almost same manner as a `WorkerPool` and allows to specify number of workers that going to proseed values received from the incoming channel. Outgoing channel is going to be closed once the incoming chan is closed or context canceld.
 
 ### func PipelineWithContext
 
@@ -475,13 +426,13 @@ func main() {
 </p>
 </details>
 
-### func PipelineWithDone
+### func Queue
 
 ```go
-func PipelineWithDone[T1, T2 any](done <-chan struct{}, incomingCh <-chan T1, totalWorkers int, workerFn func(T1) T2) (<-chan T2, error)
+func Queue[T any](done <-chan struct{}, genFn func() T) (<-chan T, error)
 ```
 
-PipelineWithDone returns the channel of generic type `T2` that can serve as a pipeline for the next stage. It's implemented in almost same manner as a `WorkerPool` and allows to specify number of workers that going to proseed values received from the incoming channel. Outgoing channel is going to be closed once the incoming chan is closed or context canceld.
+Queue returns an unbuffered channel that is populated by func `genFn`. Chan is closed once context is Done. It's similar to `Future` pattern, but doesn't have a limit to just one result.
 
 ### func QueueWithContext
 
@@ -546,13 +497,14 @@ func main() {
 </p>
 </details>
 
-### func QueueWithDone
+### func Tee
 
 ```go
-func QueueWithDone[T any](done <-chan struct{}, genFn func() T) (<-chan T, error)
+func Tee[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, <-chan T, error)
 ```
 
-QueueWithDone returns an unbuffered channel that is populated by func `genFn`. Chan is closed once context is Done. It's similar to `Future` pattern, but doesn't have a limit to just one result.
+Tee will return two channels of generic type `T` used to fan
+-out data from the incoming channel. Channels needs to be read in order next iteration over incoming chanel happen.
 
 ### func TeeWithContext
 
@@ -563,70 +515,13 @@ func TeeWithContext[T any](ctx context.Context, incoming <-chan T) (<-chan T, <-
 TeeWithContext will return two channels of generic type `T` used to fan
 -out data from the incoming channel. Channels needs to be read in order next iteration over incoming chanel happen.
 
-### func TeeWithDone
+### func WorkerPool
 
 ```go
-func TeeWithDone[T any](done <-chan struct{}, incoming <-chan T) (<-chan T, <-chan T, error)
+func WorkerPool[T any](done <-chan struct{}, jobQueue chan T, maxWorkers int, workFunc func(T)) error
 ```
 
-TeeWithDone will return two channels of generic type `T` used to fan
--out data from the incoming channel. Channels needs to be read in order next iteration over incoming chanel happen.
-
-<details><summary>Example</summary>
-<p>
-
-```go
-package main
-
-import (
-	"fmt"
-	"github.com/butuzov/harmony"
-	"sync"
-)
-
-func main() {
-	done := make(chan struct{})
-	pipe := make(chan int)
-
-	ch1, ch2, _ := harmony.TeeWithDone(done, pipe)
-
-	// generator
-	go func() {
-		defer close(pipe)
-		for i := 1; i <= 10; i++ {
-			pipe <- i
-		}
-	}()
-
-	// consumers
-	consumer := func(ch <-chan int, wg *sync.WaitGroup, consum func(i int)) {
-		defer wg.Done()
-
-		for k := range ch {
-			consum(k)
-		}
-	}
-
-	sum, prod := 0, 1
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-
-	go consumer(ch1, &wg, func(i int) { sum += i })  // Sum
-	go consumer(ch2, &wg, func(i int) { prod *= i }) // Product/Factorial
-
-	wg.Wait()
-	fmt.Printf("Sequence sum is %d. Sequence product is %d", sum, prod)
-}
-```
-
-#### Output
-
-```
-Sequence sum is 55. Sequence product is 3628800
-```
-
-</p>
-</details>
+WorkerPool accepts channel of generic type `T` which is used to serve jobs to max workersTotal workers. Goroutines stop: Once channel closed and drained, or done is closed
 
 ### func WorkerPoolWithContext
 
@@ -705,14 +600,6 @@ func main() {
 
 </p>
 </details>
-
-### func WorkerPoolWithDone
-
-```go
-func WorkerPoolWithDone[T any](done <-chan struct{}, jobQueue chan T, maxWorkers int, workFunc func(T)) error
-```
-
-WorkerPoolWithDone accepts channel of generic type `T` which is used to serve jobs to max workersTotal workers. Goroutines stop: Once channel closed and drained, or done is closed
 
 <!-- End --->
 <!-- You can Edit Content under this comment --->

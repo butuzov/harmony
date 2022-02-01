@@ -184,7 +184,7 @@ func TestOrWithContext(t *testing.T) {
 
 			// given: sequence that ends with some random number.
 			limit := 1_000
-			outgoing, err := harmony.OrWithContext(ctx, generateNumberSequence(1, limit))
+			outgoing, err := harmony.OrDoneWithContext(ctx, generateNumberSequence(1, limit))
 			if err != nil {
 				t.Errorf("ordone err: %v", err)
 			}
@@ -221,7 +221,7 @@ func TestOrWithContext(t *testing.T) {
 }
 
 func TestOrWithContextNil(t *testing.T) {
-	ch, err := harmony.OrWithContext(nil, make(chan int))
+	ch, err := harmony.OrDoneWithContext(nil, make(chan int))
 
 	if ch != nil {
 		t.Error("orDone nil chan", ch)
