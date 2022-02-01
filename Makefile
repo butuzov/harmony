@@ -1,5 +1,5 @@
 
-GO := $(shell command -v go1.18beta1 || echo "go")
+GO := $(shell command -v go1.18beta2 || echo "go")
 
 test:
 	$(GO) test -v -race -failfast -parallel=2  \
