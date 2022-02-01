@@ -127,7 +127,7 @@ func ExampleOrWithContext_Fibonacci() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
 
-	if ch, err := harmony.OrWithContext(ctx, incoming); err == nil {
+	if ch, err := harmony.OrDoneWithContext(ctx, incoming); err == nil {
 		for val := range ch {
 			results = append(results, val)
 		}
@@ -217,7 +217,7 @@ func ExampleTeeWithDone() {
 	done := make(chan struct{})
 	pipe := make(chan int)
 
-	ch1, ch2, _ := harmony.TeeWithDone(done, pipe)
+	ch1, ch2, _ := harmony.Tee(done, pipe)
 
 	// generator
 	go func() {
@@ -366,8 +366,8 @@ func Example_fastestSqrt() {
 		chRep1, _ := harmony.PipelineWithContext(ctx, ch1, 1, sqrtBabylonian)
 		chRep2, _ := harmony.PipelineWithContext(ctx, ch2, 1, sqrtBakhshali)
 
-		chRep1, _ = harmony.OrWithContext(ctx, chRep1)
-		chRep2, _ = harmony.OrWithContext(ctx, chRep2)
+		chRep1, _ = harmony.OrDoneWithContext(ctx, chRep1)
+		chRep2, _ = harmony.OrDoneWithContext(ctx, chRep2)
 
 		out, _ := harmony.FanInWithContext(ctx, chRep1, chRep2)
 		fmt.Printf("Result is :%v", <-out)
